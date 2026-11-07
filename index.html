@@ -1,0 +1,1331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Grabby Claw</title>
+<meta name="theme-color" content="#3b1d6e">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Grabby Claw">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" crossorigin="anonymous" href="https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap">
+<style>
+  /* Layout: the 3D claw machine fills the middle of the screen; the joystick and the big grab button sit under it on a phone held upright and either side of it when held sideways. Home top-left, sound and the toy shelf top-right. */
+  :root{
+    --ink:#2b2233; --cream:#fff8ef; --pink:#ff5fa2; --pink-d:#c02a6e; --red:#ff3b4e; --red-d:#a81628; --gold:#ffd23f; --gold-d:#c98a00;
+    --purple:#5b3aa8; --purple-d:#2b1659; --wood:#c98b4f; --wood-d:#9a6232;
+    --title:'Luckiest Guy','Arial Rounded MT Bold','Trebuchet MS',system-ui,sans-serif;
+    --read:Verdana,Tahoma,sans-serif;
+    --stick:clamp(124px, 36vw, 172px); --btn:clamp(112px, 31vw, 150px);
+    --low:calc(max(16px, 3.5vh) + env(safe-area-inset-bottom,0px));
+    color-scheme: light;
+  }
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  html,body{height:100%;margin:0;overflow:hidden;color:var(--ink);font-family:var(--read);
+    background:radial-gradient(ellipse at 50% 28%, #7445c2 0%, #3b1d6e 55%, #1d0d3d 100%);
+    touch-action:none;overscroll-behavior:none;-webkit-user-select:none;user-select:none;
+    -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
+  button{font:inherit;color:inherit;border:0;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;padding:0}
+
+  #stage{position:fixed;inset:0;overflow:hidden}
+  /* soft arcade lights far behind the machine */
+  #stage::before{content:'';position:absolute;inset:0;pointer-events:none;opacity:.55;
+    background:radial-gradient(circle at 12% 18%, #ff5fa255 0 40px, transparent 90px),radial-gradient(circle at 88% 12%, #4fd6ff44 0 50px, transparent 110px),
+      radial-gradient(circle at 80% 62%, #ffd23f33 0 40px, transparent 100px),radial-gradient(circle at 8% 70%, #7bd38933 0 50px, transparent 110px)}
+  #c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+  /* ---------- home: back to the list of all games ---------- */
+  #home{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));left:calc(10px + env(safe-area-inset-left,0px));z-index:50;
+    width:44px;height:44px;border-radius:50%;display:grid;place-items:center;color:var(--ink);background:rgba(255,255,255,.88);
+    box-shadow:0 3px 0 rgba(0,0,0,.18);touch-action:manipulation;-webkit-tap-highlight-color:transparent;text-decoration:none}
+  #home svg{width:24px;height:24px}
+  #home:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(0,0,0,.18)}
+
+  /* ---------- top right: sound, and the shelf of toys won ---------- */
+  #mute{position:fixed;top:calc(10px + env(safe-area-inset-top,0px));right:calc(10px + env(safe-area-inset-right,0px));z-index:50;
+    width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.88);font-size:22px;line-height:44px;box-shadow:0 3px 0 rgba(0,0,0,.18)}
+  #shelfBtn{position:fixed;top:calc(8px + env(safe-area-inset-top,0px));right:calc(64px + env(safe-area-inset-right,0px));z-index:50;
+    height:48px;min-width:48px;padding:0 12px 0 4px;border-radius:24px;background:var(--cream);display:flex;align-items:center;gap:2px;
+    box-shadow:0 3px 0 rgba(0,0,0,.2);font-weight:bold;font-size:20px}
+  #shelfBtn img{width:42px;height:42px;display:block}
+  #shelfBtn:active{transform:translateY(2px)}
+  #shelfBtn.pop{animation:pop .5s}
+  @keyframes pop{35%{transform:scale(1.35)}}
+
+  /* ---------- controls: joystick, grab button, coin ---------- */
+  #stick{position:fixed;z-index:6;left:calc(6vw + env(safe-area-inset-left,0px));bottom:var(--low);width:var(--stick);height:var(--stick);border-radius:50%;
+    background:radial-gradient(circle at 50% 42%, #6d4bc2, #3d2385 72%);box-shadow:0 7px 0 var(--purple-d), inset 0 0 0 5px rgba(255,255,255,.14);touch-action:none}
+  #stick .arr{position:absolute;width:20%;height:20%;fill:#fff;opacity:.55}
+  #stick .u{left:40%;top:4%} #stick .d{left:40%;bottom:4%;transform:rotate(180deg)} #stick .l{left:4%;top:40%;transform:rotate(-90deg)} #stick .r{right:4%;top:40%;transform:rotate(90deg)}
+  #knob{position:absolute;left:50%;top:50%;width:46%;height:46%;border-radius:50%;transform:translate(-50%,-50%);pointer-events:none;
+    background:radial-gradient(circle at 36% 30%, #ffb0d4, #ff5fa2 45%, #d6307c 80%);box-shadow:0 6px 0 var(--pink-d), 0 8px 10px rgba(0,0,0,.3)}
+  #stick.nudge #knob{animation:wiggle 1.2s ease-in-out infinite}
+  @keyframes wiggle{0%,100%{transform:translate(-50%,-50%)}25%{transform:translate(-20%,-50%)}75%{transform:translate(-80%,-50%)}}
+  #stick.off{opacity:.55}
+
+  .bigbtn{position:fixed;z-index:6;right:calc(6vw + env(safe-area-inset-right,0px));bottom:calc(var(--low) + (var(--stick) - var(--btn)) / 2);width:var(--btn);height:var(--btn);border-radius:50%;display:grid;place-items:center}
+  #grab{background:radial-gradient(circle at 40% 32%, #ff8a96, var(--red) 55%, #d8202f 85%);box-shadow:0 10px 0 var(--red-d), 0 12px 16px rgba(0,0,0,.35), inset 0 -6px 0 rgba(0,0,0,.12);
+    border:6px solid #ffe3e6;transition:transform .08s, box-shadow .08s}
+  #grab svg{width:56%;height:56%}
+  #grab:active,#grab.down{transform:translateY(8px);box-shadow:0 2px 0 var(--red-d), 0 3px 6px rgba(0,0,0,.35)}
+  #grab.off{filter:saturate(.25) brightness(.85)}
+  #grab.call{animation:throb 1s ease-in-out infinite}
+  @keyframes throb{50%{transform:scale(1.1)}}
+  #coin{background:none}
+  #coin svg{width:100%;height:100%;filter:drop-shadow(0 8px 0 rgba(0,0,0,.25));animation:shine 1.6s ease-in-out infinite}
+  #coin:active svg{transform:scale(.92)}
+  #coin.call svg{animation:hop 0.6s ease-in-out infinite alternate}
+  @keyframes shine{50%{transform:rotate(-8deg) scale(1.05)}}
+  @keyframes hop{to{transform:translateY(-16px) rotate(8deg)}}
+  #flycoin{position:fixed;left:0;top:0;width:64px;height:64px;z-index:30;pointer-events:none;transition:transform .55s cubic-bezier(.4,-0.3,.6,1)}
+
+  /* sideways: joystick and button either side of the machine */
+  @media (orientation: landscape){
+    :root{--stick:clamp(112px, 34vh, 170px); --btn:clamp(104px, 30vh, 150px); --low:calc(max(14px, 9vh) + env(safe-area-inset-bottom,0px))}
+    #stick{left:calc(3vw + env(safe-area-inset-left,0px))}
+    .bigbtn{right:calc(3vw + env(safe-area-inset-right,0px))}
+  }
+
+  /* ---------- prize: a tap anywhere sends it to the shelf ---------- */
+  #tapcatch{position:fixed;inset:0;z-index:15}
+  .confetti{position:fixed;top:-20px;width:10px;height:16px;z-index:19;pointer-events:none;border-radius:2px;animation:fall linear forwards}
+  @keyframes fall{to{transform:translateY(110vh) rotate(720deg)}}
+
+  /* ---------- the shelf of toys won ---------- */
+  .veil{position:fixed;inset:0;z-index:40;display:grid;place-items:center;padding:16px;background:rgba(20,8,45,.55)}
+  .card{position:relative;padding:22px 16px 16px;border-radius:28px;background:var(--cream);box-shadow:0 8px 0 rgba(0,0,0,.25);
+    max-width:min(560px, 94vw);max-height:calc(100% - 8px);overflow:auto;animation:rise .4s cubic-bezier(.3,1.5,.6,1)}
+  @keyframes rise{from{transform:translateY(40px) scale(.85);opacity:0}}
+  #shelves{display:grid;grid-template-columns:repeat(4, 1fr);gap:4px 6px;margin-top:6px}
+  @media (orientation: landscape){ #shelves{grid-template-columns:repeat(6, 1fr)} .card{max-width:min(720px, 94vw)} }
+  .slot{position:relative;aspect-ratio:1;min-width:64px;border-bottom:10px solid var(--wood);border-radius:0 0 4px 4px;
+    background:linear-gradient(#0000 70%, #c98b4f22);display:grid;place-items:end center;box-shadow:0 4px 0 var(--wood-d)}
+  .slot img{width:96%;height:96%;object-fit:contain;display:block}
+  .slot:not(.got) img{filter:brightness(0) opacity(.13)}
+  .slot b{position:absolute;right:2px;top:2px;min-width:26px;height:26px;padding:0 5px;border-radius:13px;background:var(--pink);color:#fff;font-size:15px;line-height:26px}
+  .slot.jig img{animation:jig .6s}
+  @keyframes jig{25%{transform:rotate(-12deg) scale(1.1)}75%{transform:rotate(12deg) scale(1.1)}}
+  #shelfTop{display:flex;align-items:center;justify-content:center;gap:10px;font-family:var(--title);font-size:30px;color:var(--pink);min-height:44px;padding:0 44px}
+  #shelfClose{position:absolute;right:10px;top:10px;width:48px;height:48px;border-radius:50%;background:var(--pink);color:#fff;box-shadow:0 4px 0 var(--pink-d);display:grid;place-items:center}
+  #shelfClose svg{width:24px;height:24px}
+
+  @media (prefers-reduced-motion: reduce){ .card,#coin svg,#grab.call,#stick.nudge #knob{animation:none} }
+</style>
+</head>
+<body>
+<a id="home" href="../index.html" aria-label="All games" title="All games"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 11 12 4l8.5 7" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 9.8V20h12V9.8" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/><path d="M10 20v-5.5h4V20" fill="currentColor"/></svg></a>
+<button id="mute" aria-label="Sound on or off">🔈</button>
+<button id="shelfBtn" aria-label="My toys"><img id="shelfImg" alt=""><span id="shelfCount">0</span></button>
+<div id="stage"><canvas id="c"></canvas></div>
+
+<div id="stick" aria-label="Move the claw" class="off">
+  <svg class="arr u" viewBox="0 0 10 10"><path d="M5 1 9.5 8h-9z"/></svg><svg class="arr d" viewBox="0 0 10 10"><path d="M5 1 9.5 8h-9z"/></svg>
+  <svg class="arr l" viewBox="0 0 10 10"><path d="M5 1 9.5 8h-9z"/></svg><svg class="arr r" viewBox="0 0 10 10"><path d="M5 1 9.5 8h-9z"/></svg>
+  <div id="knob"></div>
+</div>
+<button id="grab" class="bigbtn off" aria-label="Grab!" hidden><svg viewBox="0 0 48 48" aria-hidden="true">
+  <path d="M24 3v12" stroke="#fff" stroke-width="4" stroke-linecap="round"/><rect x="17" y="13" width="14" height="8" rx="3" fill="#fff"/>
+  <path d="M19 21 11 31l6 11M29 21l8 10-6 11M24 21v20" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+<button id="coin" class="bigbtn" aria-label="Put in a coin"><svg viewBox="0 0 64 64" aria-hidden="true">
+  <circle cx="32" cy="32" r="29" fill="#e9a400"/><circle cx="32" cy="30" r="27" fill="#ffd23f"/><circle cx="32" cy="30" r="20" fill="none" stroke="#f0b400" stroke-width="3"/>
+  <path d="m32 15 4.3 9 9.7 1.2-7.1 6.7 1.8 9.7L32 37l-8.7 4.6 1.8-9.7-7.1-6.7 9.7-1.2z" fill="#fff6c7" stroke="#e9a400" stroke-width="2" stroke-linejoin="round"/>
+  <path d="M15 21a20 20 0 0 1 9-8" stroke="#fff" stroke-width="3.5" stroke-linecap="round" opacity=".7"/></svg></button>
+<svg id="flycoin" viewBox="0 0 64 64" hidden aria-hidden="true"><circle cx="32" cy="32" r="29" fill="#e9a400"/><circle cx="32" cy="30" r="27" fill="#ffd23f"/>
+  <path d="m32 15 4.3 9 9.7 1.2-7.1 6.7 1.8 9.7L32 37l-8.7 4.6 1.8-9.7-7.1-6.7 9.7-1.2z" fill="#fff6c7" stroke="#e9a400" stroke-width="2" stroke-linejoin="round"/></svg>
+<div id="tapcatch" hidden></div>
+
+<div id="shelf" class="veil" hidden>
+  <div class="card">
+    <button id="shelfClose" aria-label="Back to the claw machine"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5 5 19" stroke="currentColor" stroke-width="3.6" stroke-linecap="round"/></svg></button>
+    <div id="shelfTop"></div>
+    <div id="shelves"></div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+/* ======== tuning knobs ======== */
+const MOVE_SPEED = 1.9;     // how fast the claw slides along the top (the box is 4.2 wide)
+const DROP_SPEED = 2.4;     // how fast it goes down,
+const LIFT_SPEED = 1.6;     // back up,
+const CARRY_SPEED = 1.7;    // and over to the prize hole
+const HOLD_CENTRE = 0.9;    // chance a toy right under the middle of the claw stays held all the way to the hole
+const HOLD_EDGE = 0.35;     // ... and one only just caught by its edge
+const GRAB_REACH = 1.0;     // how far off-centre still catches a toy, in toy sizes (its radius)
+const BURIED = 0.6;         // the hold chance is multiplied by this for each toy lying on top of the caught one
+const LUCKY_AFTER = 2;      // after this many tries in a row with no prize, the next toy caught is held for sure
+const TOYS_IN = 18;         // toys in a full machine
+const REFILL_AT = 11;       // with fewer than this left, a fresh load drops in
+const NEW_TOY_PULL = 3;     // a kind of toy not on the shelf yet is this many times likelier to go into the machine
+const GRAVITY = 14;         // plush falls a bit floaty
+const HELP_TIMES = 3;       // the spoken how-to lines are said this many times ever, then the child knows
+const IDLE_HINT = 6;        // seconds of nothing before the joystick or button nudges
+const PRIZE_SHOW = 3.4;     // seconds a prize is shown before it hops onto the shelf by itself
+const MUSIC_VOL = 0.05;
+const MUSIC_BPM = 112;
+
+/* ======== the machine's measurements (world units, a toy is about 0.85 across) ======== */
+const BX = 2.1, BZ = 1.5, BTOP = 4.75;      // inside of the glass box: x -2.1..2.1, z -1.5..1.5, floor at y 0
+const HOLE = { x0: -BX, x1: -1.0, z0: 0.35, z1: BZ, wall: 0.7 };   // prize hole in the front-left corner, inside a low clear wall
+const HOLE_X = (HOLE.x0 + HOLE.x1) / 2, HOLE_Z = (HOLE.z0 + HOLE.z1) / 2;
+const RAIL_Y = 4.5;         // the carriage runs on rails up here
+const TOP_Y = 3.7;          // hub height with the claw up
+const GRIP = 0.62;          // a held toy's centre hangs this far below the hub
+const FLOOR_STOP = 0.76;    // lowest the hub goes (open claw tips just above the floor)
+const LIM_X = 1.72, LIM_Z = 1.12;   // how far the claw can go
+const OPEN_ANGLE = 0.65, SHUT_ANGLE = -0.16;
+const DOOR = new THREE.Vector3(HOLE_X, -0.85, 1.8), SLOT = new THREE.Vector3(1.45, -0.62, 1.8);
+
+/* ======== little helpers ======== */
+const $ = (s) => document.querySelector(s);
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('clawmachine.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem('clawmachine.' + k, JSON.stringify(v)); } catch {} },
+};
+const params = new URLSearchParams(location.search);
+const FORCE_MUTE = params.has('mute') || params.has('tbxtest');   // test runs stay silent
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const ease = (t) => t * t * (3 - 2 * t);
+const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (a) => a[Math.floor(Math.random() * a.length)];
+const buzz = (ms) => { try { if (navigator.userActivation?.hasBeenActive !== false) navigator.vibrate?.(ms); } catch {} };
+const event = (name, data) => { try { window.tbxEvent?.(name, data); } catch {} };
+
+/* ======== sound: all synthesized, and the device's own voice ======== */
+const MUSIC_BARS = [
+  { bass: 48, arp: [60, 64, 67, 72] }, { bass: 45, arp: [57, 60, 64, 69] },
+  { bass: 41, arp: [57, 60, 65, 69] }, { bass: 43, arp: [55, 59, 62, 67] },
+];
+const MUSIC_TUNE = [72, 74, 76, 79, 81];
+const midiHz = (m) => 440 * 2 ** ((m - 69) / 12);
+const sfx = (() => {
+  let ac = null, out = null, noise = null, motorO = null, motorG = null, mus = null, muted = FORCE_MUTE || store.get('muted', false);
+  const music = { on: false, want: false, timer: 0, step: 0, next: 0, tune: [] };
+  function init() {
+    if (ac) { if (ac.state !== 'running') ac.resume().catch(() => {}); return; }
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return;
+    ac = new AC(); out = ac.createGain(); out.gain.value = muted ? 0 : 0.8; out.connect(ac.destination);
+    noise = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
+    const d = noise.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    // the gantry motor: one hum that's turned up while something moves
+    motorO = ac.createOscillator(); motorO.type = 'sawtooth'; motorO.frequency.value = 70;
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420;
+    motorG = ac.createGain(); motorG.gain.value = 0; motorO.connect(lp).connect(motorG).connect(out); motorO.start();
+    mus = ac.createGain(); mus.gain.value = MUSIC_VOL; mus.connect(out);
+    try { speechSynthesis.speak(new SpeechSynthesisUtterance('')); } catch {}   // iOS lets the voice speak later only if it spoke in a tap
+    if (music.want) startMusic();
+  }
+  const ok = () => ac && ac.state === 'running';   // muted sounds still play, into a silent output
+  function tone(type, f0, f1, at, dur, vol, cut, dest = out) {
+    const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type; o.frequency.setValueAtTime(f0, t); if (f1 !== f0) o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.012); g.gain.setValueAtTime(vol, t + dur * 0.5);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    let node = o.connect(g);
+    if (cut) { const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = cut; g.connect(f); node = f; }
+    node.connect(dest); o.start(t); o.stop(t + dur + 0.05);
+  }
+  function hiss(at, dur, vol, cut) {
+    const t = ac.currentTime + at, s = ac.createBufferSource(), g = ac.createGain(), f = ac.createBiquadFilter();
+    s.buffer = noise; f.type = 'lowpass'; f.frequency.value = cut;
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f).connect(g).connect(out); s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.05);
+  }
+  // a bouncy arcade loop: kick, tick, bass, arpeggio and a little random tune each bar
+  function startMusic() {
+    music.want = true;
+    if (!ok() || music.on || muted) return;
+    music.on = true; music.step = 0; music.next = ac.currentTime + 0.1;
+    music.timer = setInterval(() => {
+      if (music.next < ac.currentTime - 0.05) music.next = ac.currentTime + 0.05;   // timer held up: skip, don't burst
+      while (music.next < ac.currentTime + 0.15) { note(music.step, music.next); music.next += 60 / MUSIC_BPM / 4; music.step++; }
+    }, 25);
+  }
+  function stopMusic() { music.on = false; clearInterval(music.timer); }
+  function note(i, t) {
+    const s = i % 16, bar = MUSIC_BARS[Math.floor(i / 16) % MUSIC_BARS.length], at = t - ac.currentTime;
+    if (s === 0) music.tune = Array.from({ length: 8 }, () => (Math.random() < 0.35 ? pick(MUSIC_TUNE) : 0));
+    if (s === 0 || s === 8) tone('sine', 130, 45, at, 0.16, 0.5, 0, mus);
+    if (s === 4 || s === 12) tone('triangle', 2600, 2600, at, 0.03, 0.05, 0, mus);
+    if (s % 4 === 0 || s === 6 || s === 14) tone('square', midiHz(bar.bass), midiHz(bar.bass), at, 0.14, 0.14, 700, mus);
+    if (s % 2 === 0) tone('triangle', midiHz(bar.arp[(s / 2) % 4] + (s >= 8 ? 12 : 0)), midiHz(bar.arp[(s / 2) % 4] + (s >= 8 ? 12 : 0)), at, 0.1, 0.07, 0, mus);
+    if (s % 2 === 0 && music.tune[s / 2]) tone('sine', midiHz(music.tune[s / 2]), midiHz(music.tune[s / 2]), at, 0.26, 0.09, 0, mus);
+  }
+  function duck(secs) {
+    if (!mus) return; const t = ac.currentTime, g = mus.gain;
+    g.cancelScheduledValues(t); g.setTargetAtTime(MUSIC_VOL * 0.3, t, 0.08); g.setTargetAtTime(MUSIC_VOL, t + secs, 0.4);
+  }
+  return {
+    init,
+    get muted() { return muted; },
+    toggle() {
+      muted = !muted; if (!FORCE_MUTE) store.set('muted', muted);
+      if (out) out.gain.value = muted ? 0 : 0.8;
+      if (muted) { try { speechSynthesis.cancel(); } catch {} stopMusic(); } else if (music.want) startMusic();
+      return muted;
+    },
+    music(on) { if (on) startMusic(); else { music.want = false; stopMusic(); } },
+    pause() { stopMusic(); }, resume() { if (music.want) startMusic(); },
+    motor(level, pitch) {
+      if (!motorG) return; const t = ac.currentTime;
+      motorG.gain.setTargetAtTime(level * 0.06, t, 0.05); motorO.frequency.setTargetAtTime(pitch, t, 0.08);
+    },
+    tap() { if (ok()) tone('sine', 660, 760, 0, 0.06, 0.06); },
+    coin() {
+      if (!ok()) return;
+      tone('square', 1976, 1976, 0, 0.07, 0.04, 5000); tone('sine', 2637, 2637, 0.07, 0.4, 0.08);
+      tone('triangle', 200, 90, 0.22, 0.12, 0.14); hiss(0.22, 0.1, 0.06, 2500);
+    },
+    clack() { if (ok()) { hiss(0, 0.05, 0.12, 3000); tone('square', 320, 180, 0, 0.06, 0.05, 1500); } },
+    squeak() { if (ok()) { tone('triangle', 900, 1500, 0, 0.11, 0.09); tone('triangle', 1500, 1100, 0.11, 0.12, 0.07); } },
+    boop() { if (ok()) tone('sine', 300, 520, 0, 0.12, 0.12); },
+    aww() { if (ok()) { tone('triangle', 440, 415, 0, 0.3, 0.09, 2000); tone('triangle', 392, 330, 0.3, 0.55, 0.09, 2000); } },
+    whoops() { if (ok()) tone('sine', 1300, 360, 0, 0.6, 0.1); },
+    pomf(v) { if (ok()) { tone('sine', 190, 80, 0, 0.12, 0.12 * v); hiss(0, 0.06, 0.05 * v, 700); } },
+    plop() { if (ok()) tone('sine', 520, 260, 0, 0.1, 0.07); },
+    thump() { if (ok()) { tone('sine', 160, 60, 0, 0.22, 0.25); hiss(0, 0.08, 0.12, 600); } },
+    fanfare() {
+      if (!ok()) return;
+      [523, 659, 784, 1047].forEach((n, i) => tone('triangle', n, n, i * 0.12, 0.2, 0.12));
+      for (const n of [523, 659, 784, 1047]) tone('triangle', n, n, 0.52, 0.8, 0.07);
+      [1568, 2093, 2637, 3136].forEach((n, i) => tone('sine', n, n, 0.55 + i * 0.07, 0.18, 0.035));
+    },
+    jingle() { if (ok()) [784, 988, 1175, 1568, 1175, 1568, 2093].forEach((n, i) => tone('triangle', n, n, i * 0.11, 0.16, 0.07)); },
+    say(text) {
+      if (muted || !ok() || !('speechSynthesis' in window)) return;
+      try {
+        speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text); u.lang = 'en-GB'; u.rate = 0.95; u.pitch = 1.15;
+        speechSynthesis.speak(u); duck(Math.max(1.2, text.length * 0.07));
+      } catch {}
+    },
+    get running() { return ok(); }, get playing() { return music.on; },
+  };
+})();
+// the how-to lines are said the first HELP_TIMES times they're needed, ever
+function help(key, text) {
+  const heard = store.get('heard', {});
+  if ((heard[key] || 0) >= HELP_TIMES) return;
+  heard[key] = (heard[key] || 0) + 1; store.set('heard', heard);
+  sfx.say(text);
+}
+
+/* ======== renderer, camera and lights ======== */
+const canvas = $('#c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setClearColor(0x000000, 0);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(36, 1, 0.1, 80);
+const hemi = new THREE.HemisphereLight(0xfff4ff, 0x7a5c9e, 1.5);
+const sun = new THREE.DirectionalLight(0xffffff, 1.9);
+sun.position.set(1.0, 9, 2.6); sun.castShadow = true; sun.shadow.mapSize.set(1024, 1024);
+Object.assign(sun.shadow.camera, { left: -3.2, right: 3.2, top: 3.2, bottom: -3.2, near: 2, far: 16 });
+sun.shadow.bias = -0.0006; sun.shadow.normalBias = 0.02;
+const fill = new THREE.DirectionalLight(0xffe8f4, 0.7); fill.position.set(-2, 3, 9);
+scene.add(hemi, sun, sun.target, fill);
+
+const mat = (color, o = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.55, metalness: 0, ...o });
+function canvasTex(w, h, draw) {
+  const cv = document.createElement('canvas'); cv.width = w; cv.height = h; draw(cv.getContext('2d'), w, h);
+  const t = new THREE.CanvasTexture(cv); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t;
+}
+function star(g, x, y, r, fill) {
+  g.beginPath();
+  for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, q = i % 2 ? r * 0.45 : r; g.lineTo(x + Math.cos(a) * q, y + Math.sin(a) * q); }
+  g.closePath(); g.fillStyle = fill; g.fill();
+}
+
+/* ======== the cabinet ======== */
+const PINK = '#ff5fa2', PINK_D = '#e0408a', YEL = '#ffd23f', METAL = '#d9dee8';
+const mPink = mat(PINK, { roughness: 0.45 }), mPinkD = mat(PINK_D, { roughness: 0.45 }), mYel = mat(YEL, { roughness: 0.4 });
+const mMetal = mat(METAL, { roughness: 0.3, metalness: 0.35 }), mDark = mat('#24123f', { roughness: 0.9 });
+const cab = new THREE.Group(); scene.add(cab);
+function box(w, h, d, m, x, y, z, parent = cab) {
+  const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); b.position.set(x, y, z); parent.add(b); return b;
+}
+// base, down below the screen so it never ends in mid-air
+box(4.9, 4.2, 3.5, mPink, 0, -2.125, 0);
+box(4.96, 0.16, 3.56, mYel, 0, -0.16, 0);   // yellow lip under the glass (just below the floor)
+// floor of the box, with the hole cut out
+const floorTex = canvasTex(256, 256, (g, w, h) => {
+  g.fillStyle = '#cdb8ff'; g.fillRect(0, 0, w, h);
+  g.fillStyle = '#dccbff'; for (let y = 0; y < 4; y++) for (let x = 0; x < 4; x++) { g.beginPath(); g.arc(x * 64 + 32 + (y % 2) * 32, y * 64 + 32, 12, 0, Math.PI * 2); g.fill(); }
+});
+floorTex.wrapS = floorTex.wrapT = THREE.RepeatWrapping;
+function floorPiece(x0, x1, z0, z1) {
+  const t = floorTex.clone(); t.needsUpdate = true; t.repeat.set((x1 - x0) / 0.9, (z1 - z0) / 0.9);
+  const m = box(x1 - x0, 0.1, z1 - z0, mat('#ffffff', { map: t, roughness: 0.95 }), (x0 + x1) / 2, -0.05, (z0 + z1) / 2);
+  m.receiveShadow = true;
+}
+floorPiece(HOLE.x1, BX, -BZ, BZ); floorPiece(-BX, HOLE.x1, -BZ, HOLE.z0);
+// the hole: dark inside, a clear low wall round it with a yellow top
+box(HOLE.x1 - HOLE.x0, 0.02, HOLE.z1 - HOLE.z0, mDark, HOLE_X, -0.03, HOLE_Z);
+const mClear = mat('#bfe8ff', { transparent: true, opacity: 0.3, roughness: 0.1, depthWrite: false });
+box(0.06, HOLE.wall, HOLE.z1 - HOLE.z0 + 0.03, mClear, HOLE.x1, HOLE.wall / 2, HOLE_Z - 0.015);
+box(HOLE.x1 - HOLE.x0, HOLE.wall, 0.06, mClear, HOLE_X, HOLE.wall / 2, HOLE.z0);
+box(0.09, 0.07, HOLE.z1 - HOLE.z0 + 0.05, mYel, HOLE.x1, HOLE.wall, HOLE_Z - 0.02);
+box(HOLE.x1 - HOLE.x0, 0.07, 0.09, mYel, HOLE_X, HOLE.wall, HOLE.z0);
+// back wall: a sky with clouds and stars, so the toys stand out and depth reads
+const backTex = canvasTex(512, 512, (g, w, h) => {
+  const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#8fd8ff'); gr.addColorStop(1, '#ffc6e4'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  g.fillStyle = 'rgba(255,255,255,.85)';
+  for (const [x, y, s] of [[90, 120, 1], [380, 80, 0.8], [300, 260, 1.1], [80, 360, 0.7], [440, 400, 0.9]]) {
+    for (const [dx, dy, r] of [[-30, 6, 26], [0, -8, 34], [32, 4, 26], [0, 12, 26]]) { g.beginPath(); g.arc(x + dx * s, y + dy * s, r * s, 0, Math.PI * 2); g.fill(); }
+  }
+  for (let i = 0; i < 16; i++) star(g, (i * 137) % w, (i * 251) % h, 8 + (i % 3) * 4, '#fff7a8');
+});
+box(4.3, 4.8, 0.06, mat('#ffffff', { map: backTex, roughness: 0.9 }), 0, 2.4, -1.58).receiveShadow = true;
+// corner posts, roof, glass
+const postGeo = new THREE.CylinderGeometry(0.1, 0.1, BTOP + 0.05, 16);
+for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { const p = new THREE.Mesh(postGeo, mPinkD); p.position.set(x * 2.2, BTOP / 2, z * 1.6); cab.add(p); }
+box(4.96, 0.5, 3.56, mPink, 0, BTOP + 0.25, 0);
+box(4.2, 0.04, 2.9, new THREE.MeshBasicMaterial({ color: '#fffbe8' }), 0, BTOP - 0.02, 0);   // light panel under the roof
+const mGlass = new THREE.MeshBasicMaterial({ color: '#e8f6ff', transparent: true, opacity: 0.07, depthWrite: false });
+box(4.3, BTOP, 0.02, mGlass, 0, BTOP / 2, 1.6);
+box(0.02, BTOP, 3.2, mGlass, -2.2, BTOP / 2, 0); box(0.02, BTOP, 3.2, mGlass, 2.2, BTOP / 2, 0);
+const mGlare = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.1, depthWrite: false });
+for (const [x, w] of [[1.1, 0.35], [1.6, 0.12], [-0.6, 0.18]]) { const g = box(w, 5.2, 0.01, mGlare, x, BTOP / 2, 1.62); g.rotation.z = 0.5; g.scale.y = 0.95; }
+// the sign on top
+const signTex = canvasTex(1024, 192, () => {});
+function drawSign() {
+  const cv = signTex.image, g = cv.getContext('2d'), w = cv.width, h = cv.height;
+  const gr = g.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#7b4fd6'); gr.addColorStop(1, '#4a2a9a'); g.fillStyle = gr; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 9; i++) star(g, 40 + i * 118, i % 2 ? 40 : 152, 14, '#ffffff55');
+  g.font = '118px "Luckiest Guy", "Arial Rounded MT Bold", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.lineJoin = 'round'; g.lineWidth = 18; g.strokeStyle = '#e0307a'; g.strokeText('GRABBY CLAW', w / 2, h / 2 + 8);
+  g.fillStyle = '#ffd23f'; g.fillText('GRABBY CLAW', w / 2, h / 2 + 8);
+  signTex.needsUpdate = true;
+}
+drawSign(); document.fonts?.load('118px "Luckiest Guy"').then(drawSign).catch(() => {});
+const signFront = mat('#ffffff', { map: signTex, roughness: 0.6, emissive: '#ffffff', emissiveMap: signTex, emissiveIntensity: 0.35 });
+const sign = new THREE.Mesh(new THREE.BoxGeometry(4.9, 0.92, 0.3), [mPinkD, mPinkD, mPinkD, mPinkD, signFront, mPinkD]);
+sign.position.set(0, BTOP + 0.95, 1.5); cab.add(sign);
+// the prize door (front left) and the coin slot (front right)
+box(1.2, 1.0, 0.1, mYel, DOOR.x, DOOR.y, 1.76);
+box(1.0, 0.8, 0.06, mDark, DOOR.x, DOOR.y, 1.79);
+const flap = new THREE.Group(); flap.position.set(DOOR.x, DOOR.y + 0.4, 1.84); cab.add(flap);
+box(0.98, 0.8, 0.02, mat('#d8f2ff', { transparent: true, opacity: 0.45, roughness: 0.1 }), 0, -0.4, 0, flap);
+box(0.8, 1.05, 0.08, mMetal, SLOT.x, -0.75, 1.76);
+const slotGlow = box(0.2, 0.52, 0.03, new THREE.MeshBasicMaterial({ color: '#ffe066' }), SLOT.x, SLOT.y, 1.8);
+box(0.07, 0.4, 0.04, mDark, SLOT.x, SLOT.y, 1.81);
+box(0.34, 0.2, 0.05, mDark, SLOT.x, -1.1, 1.8);   // coin return
+// marquee bulbs round the sign and up the front posts: instanced, coloured each frame
+const bulbSpots = [];
+for (let i = 0; i < 16; i++) { const x = -2.3 + i * (4.6 / 15); bulbSpots.push([x, BTOP + 1.47, 1.66], [x, BTOP + 0.43, 1.66]); }
+for (let y = 0.3; y < BTOP; y += 0.42) bulbSpots.push([-2.2, y, 1.72], [2.2, y, 1.72]);
+const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.075, 10, 8), new THREE.MeshBasicMaterial({ color: '#ffffff' }), bulbSpots.length);
+bulbSpots.forEach(([x, y, z], i) => bulbs.setMatrixAt(i, new THREE.Matrix4().makeTranslation(x, y, z)));
+cab.add(bulbs);
+const BULB_COLOURS = ['#ffe066', '#ff7ab8', '#6fe3ff'].map((c) => new THREE.Color(c)), BULB_OFF = new THREE.Color('#7a5a8a');
+// rails and the moving gantry
+box(0.08, 0.1, 3.1, mMetal, -2.05, RAIL_Y, 0); box(0.08, 0.1, 3.1, mMetal, 2.05, RAIL_Y, 0);
+const crossbar = box(4.1, 0.09, 0.12, mMetal, 0, RAIL_Y + 0.02, 0, scene);
+const carriage = box(0.4, 0.2, 0.4, mYel, 0, RAIL_Y - 0.06, 0, scene);
+const cable = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 1, 8), mat('#555066'));
+scene.add(cable);
+for (const m of cab.children) if (m.isMesh && m !== bulbs) m.receiveShadow = true;
+
+/* ======== the claw ======== */
+const clawG = new THREE.Group(); scene.add(clawG);
+const hub = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.2, 0.24, 20), mMetal); clawG.add(hub);
+const cap = new THREE.Mesh(new THREE.SphereGeometry(0.17, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), mYel); cap.position.y = 0.12; clawG.add(cap);
+const mProng = mat('#c9cfdb', { roughness: 0.35, metalness: 0.3 }), mPad = mat(PINK, { roughness: 0.7 });
+const rodGeo = new THREE.CylinderGeometry(0.038, 0.038, 1, 10), ballGeo = new THREE.SphereGeometry(1, 12, 10);
+function rod(parent, a, b) {
+  const A = new THREE.Vector3(...a), B = new THREE.Vector3(...b), d = B.clone().sub(A);
+  const m = new THREE.Mesh(rodGeo, mProng); m.position.copy(A).addScaledVector(d, 0.5); m.scale.y = d.length();
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()); parent.add(m);
+}
+const prongs = [];
+for (let k = 0; k < 3; k++) {
+  const holder = new THREE.Group(); holder.rotation.y = Math.PI / 2 + k * Math.PI * 2 / 3; clawG.add(holder);   // one prong at the back, two at the front
+  const arm = new THREE.Group(); arm.position.set(0.14, -0.1, 0); holder.add(arm);
+  rod(arm, [0, 0, 0], [0.3, -0.4, 0]); rod(arm, [0.3, -0.4, 0], [0.1, -0.86, 0]);
+  const knee = new THREE.Mesh(ballGeo, mProng); knee.scale.setScalar(0.055); knee.position.set(0.3, -0.4, 0); arm.add(knee);
+  const pad = new THREE.Mesh(ballGeo, mPad); pad.scale.set(0.075, 0.055, 0.075); pad.position.set(0.1, -0.86, 0); arm.add(pad);
+  prongs.push(arm);
+}
+clawG.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+carriage.castShadow = true; cable.castShadow = true;
+// the aiming spot: a ring on whatever is right under the claw, and a faint beam down to it
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.17, 0.27, 32), new THREE.MeshBasicMaterial({ color: '#fff35c', transparent: true, opacity: 0.95, depthWrite: false }));
+ring.rotation.x = -Math.PI / 2; ring.renderOrder = 2; scene.add(ring);
+const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 1, 10, 1, true), new THREE.MeshBasicMaterial({ color: '#fff35c', transparent: true, opacity: 0.32, depthWrite: false }));
+beam.renderOrder = 2; scene.add(beam);
+
+/* ======== the toys: each one built from simple shapes, merged into one coloured mesh ======== */
+const INK = '#2b2233', WHITE = '#ffffff', BLUSH = '#ff8fab';
+const SHAPES = {
+  s: new THREE.SphereGeometry(1, 18, 12), c: new THREE.ConeGeometry(1, 1, 14),
+  y: new THREE.CylinderGeometry(1, 1, 1, 14), t: new THREE.TorusGeometry(1, 0.22, 6, 14, Math.PI),
+};
+const _eu = new THREE.Euler();
+function part(g, c, pos, s, rot = [0, 0, 0]) {
+  return { g, c, pos: new THREE.Vector3(...pos), s: typeof s === 'number' ? new THREE.Vector3(s, s, s) : new THREE.Vector3(...s), q: new THREE.Quaternion().setFromEuler(_eu.set(...rot)) };
+}
+// the z of the front of a sphere or ellipsoid (centre c, radius R or [rx, ry, rz]) at x, y, pulled in by `inset`
+function front(c, R, x, y, inset = 0.02) {
+  const [rx, ry, rz] = typeof R === 'number' ? [R, R, R] : R;
+  return c[2] + rz * Math.sqrt(Math.max(0, 1 - (x / rx) ** 2 - ((y - c[1]) / ry) ** 2)) - inset;
+}
+function face(o, hc, R, f = {}) {
+  const { ex = 0.2, ey = 0.1, es = 0.075, cheek = BLUSH, smile = true, my = -0.13, ms = 0.09 } = f;
+  for (const k of [-1, 1]) {
+    const x = k * ex, y = hc[1] + ey, z = front(hc, R, x, y, es * 0.45);
+    o.push(part('s', INK, [x, y, z], [es, es * 1.15, es * 0.6]));
+    o.push(part('s', WHITE, [x + es * 0.32, y + es * 0.42, z + es * 0.42], es * 0.34));
+    if (cheek) { const cx = k * (ex + 0.1), cy = y - 0.14; o.push(part('s', cheek, [cx, cy, front(hc, R, cx, cy, 0.035)], [0.075, 0.05, 0.03])); }
+  }
+  if (smile) { const y = hc[1] + my; o.push(part('t', INK, [0, y + ms * 0.3, front(hc, R, 0, y, 0.01)], [ms, ms, ms * 0.6], [0, 0, Math.PI])); }
+}
+const TOYS = {
+  bear: { r: 0.44, a: 'a teddy bear', make() {
+    const B = '#b9814f', L = '#f0d2a8', o = [], hc = [0, 0.28, 0.04], R = 0.56;
+    o.push(part('s', B, [0, -0.4, 0], [0.62, 0.56, 0.54]), part('s', L, [0, -0.38, 0.32], [0.38, 0.36, 0.26]), part('s', B, hc, R));
+    for (const k of [-1, 1]) o.push(
+      part('s', B, [k * 0.4, 0.7, -0.02], [0.2, 0.2, 0.14]), part('s', L, [k * 0.4, 0.7, 0.07], [0.12, 0.12, 0.08]),
+      part('s', B, [k * 0.52, -0.3, 0.16], [0.17, 0.26, 0.17], [0, 0, k * 0.5]),
+      part('s', B, [k * 0.3, -0.86, 0.22], [0.2, 0.14, 0.24]), part('s', L, [k * 0.3, -0.84, 0.43], [0.12, 0.09, 0.04]));
+    const mz = front(hc, R, 0, 0.14, 0.12);
+    o.push(part('s', L, [0, 0.14, mz], [0.24, 0.17, 0.14]), part('s', INK, [0, 0.2, mz + 0.13], [0.08, 0.06, 0.05]),
+      part('t', INK, [0, 0.09, mz + 0.12], [0.06, 0.06, 0.04], [0, 0, Math.PI]));
+    face(o, hc, R, { ex: 0.19, ey: 0.12, smile: false, cheek: '#ff9fa8' });
+    return o;
+  } },
+  bunny: { r: 0.4, a: 'a bunny', make() {
+    const C = '#f7f3ee', P = '#ffb6c8', o = [], hc = [0, 0.12, 0.05], R = 0.5;
+    o.push(part('s', C, [0, -0.45, 0], [0.56, 0.5, 0.5]), part('s', WHITE, [0, -0.42, 0.3], [0.34, 0.32, 0.22]), part('s', C, hc, R));
+    for (const k of [-1, 1]) o.push(
+      part('s', C, [k * 0.17, 0.7, -0.04], [0.13, 0.32, 0.1], [0, 0, -k * 0.18]), part('s', P, [k * 0.17, 0.7, 0.04], [0.07, 0.24, 0.04], [0, 0, -k * 0.18]),
+      part('s', C, [k * 0.26, -0.9, 0.22], [0.16, 0.1, 0.24]), part('s', C, [k * 0.46, -0.36, 0.18], [0.13, 0.2, 0.13], [0, 0, k * 0.4]));
+    o.push(part('s', P, [0, 0.06, front(hc, R, 0, 0.06, 0.01)], [0.055, 0.04, 0.04]));
+    face(o, hc, R, { ex: 0.17, ey: 0.08, my: -0.11, ms: 0.07 });
+    return o;
+  } },
+  duck: { r: 0.4, a: 'a duck', make() {
+    const Y = '#ffd23f', O = '#ff8a1f', o = [], hc = [0, 0.32, 0.1], R = 0.46;
+    o.push(part('s', Y, [0, -0.38, -0.02], [0.62, 0.54, 0.62]), part('s', Y, hc, R),
+      part('s', Y, [0, 0.8, 0.04], [0.06, 0.14, 0.06], [0.4, 0, 0]), part('s', Y, [0.08, 0.78, 0.02], [0.05, 0.11, 0.05], [0.3, 0, -0.5]));
+    const bz = front(hc, R, 0, 0.2, 0.05);
+    o.push(part('s', O, [0, 0.21, bz + 0.1], [0.22, 0.07, 0.17]), part('s', '#e8701a', [0, 0.14, bz + 0.07], [0.17, 0.05, 0.13]));
+    for (const k of [-1, 1]) o.push(part('s', Y, [k * 0.58, -0.32, -0.05], [0.14, 0.3, 0.36], [0.2, 0, k * 0.25]), part('s', O, [k * 0.24, -0.88, 0.24], [0.2, 0.06, 0.22]));
+    face(o, hc, R, { ex: 0.16, ey: 0.12, smile: false });
+    return o;
+  } },
+  frog: { r: 0.4, a: 'a frog', make() {
+    const G = '#5cc75a', L = '#c8f0a0', o = [], hc = [0, 0.1, 0.06], HR = [0.62, 0.44, 0.52];
+    o.push(part('s', G, [0, -0.42, 0], [0.62, 0.48, 0.54]), part('s', L, [0, -0.42, 0.3], [0.4, 0.32, 0.24]), part('s', G, hc, HR));
+    for (const k of [-1, 1]) o.push(
+      part('s', G, [k * 0.3, 0.48, 0.12], 0.2), part('s', WHITE, [k * 0.3, 0.52, 0.27], [0.14, 0.14, 0.08]),
+      part('s', INK, [k * 0.3, 0.53, 0.34], [0.07, 0.08, 0.04]), part('s', WHITE, [k * 0.3 + 0.025, 0.565, 0.37], 0.025),
+      part('s', BLUSH, [k * 0.36, 0.0, front(hc, HR, k * 0.36, 0.0, 0.03)], [0.08, 0.05, 0.03]),
+      part('s', G, [k * 0.36, -0.86, 0.3], [0.24, 0.07, 0.2]), part('s', G, [k * 0.42, -0.6, 0.36], [0.12, 0.06, 0.12]));
+    o.push(part('t', INK, [0, 0.03, front(hc, HR, 0, -0.03, 0.0)], [0.2, 0.15, 0.1], [0, 0, Math.PI]));
+    return o;
+  } },
+  pig: { r: 0.42, a: 'a piggy', make() {
+    const P = '#ffb3c4', D = '#f2849d', o = [], hc = [0, 0.26, 0.05], R = 0.52;
+    o.push(part('s', P, [0, -0.4, 0], [0.62, 0.54, 0.56]), part('s', P, hc, R));
+    const sz = front(hc, R, 0, 0.16, 0.06);
+    o.push(part('y', '#ffc8d4', [0, 0.16, sz + 0.06], [0.17, 0.12, 0.13], [Math.PI / 2, 0, 0]));
+    for (const k of [-1, 1]) o.push(
+      part('s', D, [k * 0.06, 0.16, sz + 0.125], [0.03, 0.045, 0.02]),
+      part('c', D, [k * 0.32, 0.7, 0], [0.14, 0.22, 0.1], [0.3, 0, -k * 0.5]),
+      part('s', D, [k * 0.28, -0.9, 0.2], [0.14, 0.1, 0.14]), part('s', D, [k * 0.36, -0.55, 0.38], [0.12, 0.1, 0.12]));
+    face(o, hc, R, { ex: 0.2, ey: 0.14, my: -0.27, ms: 0.06 });
+    return o;
+  } },
+  panda: { r: 0.44, a: 'a panda', make() {
+    const W = '#fbfaf7', K = '#2d2a32', o = [], hc = [0, 0.28, 0.04], R = 0.56;
+    o.push(part('s', W, [0, -0.4, 0], [0.62, 0.56, 0.54]), part('s', W, hc, R));
+    for (const k of [-1, 1]) {
+      const x = k * 0.2, y = 0.36, z = front(hc, R, x, y, 0.06);
+      o.push(part('s', K, [k * 0.5, -0.3, 0.12], [0.19, 0.28, 0.19], [0, 0, k * 0.5]), part('s', K, [k * 0.3, -0.86, 0.2], [0.21, 0.15, 0.24]),
+        part('s', K, [k * 0.4, 0.72, -0.02], 0.19), part('s', K, [x, y, z], [0.13, 0.17, 0.08], [0, 0, k * 0.5]),
+        part('s', WHITE, [x + k * 0.01, y + 0.02, z + 0.06], 0.05), part('s', K, [x + k * 0.01, y + 0.02, z + 0.1], 0.03),
+        part('s', BLUSH, [k * 0.31, 0.16, front(hc, R, k * 0.31, 0.16, 0.035)], [0.07, 0.045, 0.03]));
+    }
+    const mz = front(hc, R, 0, 0.13, 0.1);
+    o.push(part('s', W, [0, 0.13, mz], [0.2, 0.14, 0.12]), part('s', K, [0, 0.18, mz + 0.11], [0.07, 0.05, 0.04]),
+      part('t', K, [0, 0.09, mz + 0.105], [0.05, 0.05, 0.03], [0, 0, Math.PI]));
+    return o;
+  } },
+  penguin: { r: 0.4, a: 'a penguin', make() {
+    const K = '#2a3150', W = '#fbfbff', O = '#ff9a2e', o = [], fc = [0, 0.3, 0.27], FR = [0.36, 0.26, 0.28];
+    o.push(part('s', K, [0, -0.12, 0], [0.6, 0.84, 0.56]), part('s', W, [0, -0.25, 0.24], [0.44, 0.62, 0.36]), part('s', W, fc, FR),
+      part('c', O, [0, 0.24, 0.6], [0.09, 0.18, 0.07], [Math.PI / 2, 0, 0]));
+    for (const k of [-1, 1]) o.push(
+      part('s', K, [k * 0.6, -0.18, 0], [0.1, 0.4, 0.22], [0, 0, k * 0.35]), part('s', O, [k * 0.2, -0.95, 0.2], [0.17, 0.06, 0.22]));
+    face(o, fc, FR, { ex: 0.12, ey: 0.08, es: 0.065, smile: false });
+    return o;
+  } },
+  kitty: { r: 0.4, a: 'a kitty', make() {
+    const C = '#ffa94d', L = '#fff0dc', S = '#e67a1e', o = [], hc = [0, 0.22, 0.04], R = 0.52;
+    o.push(part('s', C, [0, -0.42, 0], [0.56, 0.5, 0.5]), part('s', L, [0, -0.4, 0.28], [0.32, 0.32, 0.24]), part('s', C, hc, R));
+    for (const k of [-1, 1]) o.push(
+      part('c', C, [k * 0.3, 0.7, 0], [0.17, 0.28, 0.12], [0, 0, -k * 0.35]), part('c', '#ffb6c8', [k * 0.29, 0.68, 0.06], [0.1, 0.18, 0.05], [0, 0, -k * 0.35]),
+      part('s', L, [k * 0.08, 0.08, front(hc, R, k * 0.08, 0.08, 0.06)], [0.12, 0.09, 0.08]),
+      part('s', C, [k * 0.26, -0.88, 0.2], [0.16, 0.11, 0.22]), part('s', S, [k * 0.11, 0.6, front(hc, R, k * 0.11, 0.6, 0.02)], [0.03, 0.08, 0.03], [0, 0, k * 0.3]));
+    o.push(part('s', S, [0, 0.63, front(hc, R, 0, 0.63, 0.02)], [0.03, 0.09, 0.03]), part('s', '#ff8fab', [0, 0.15, front(hc, R, 0, 0.15, -0.01)], [0.045, 0.035, 0.03]));
+    for (const [x, y, z] of [[0.42, -0.72, -0.28], [0.58, -0.52, -0.32], [0.64, -0.28, -0.3]]) o.push(part('s', C, [x, y, z], 0.11));
+    face(o, hc, R, { ex: 0.19, ey: 0.13, smile: false });
+    return o;
+  } },
+  ladybird: { r: 0.38, a: 'a ladybird', make() {
+    const Rd = '#ee3b3b', K = '#26222c', o = [], sc = [0, -0.12, -0.1], SR = [0.86, 0.6, 0.82], hc = [0, -0.12, 0.6], HR = 0.34;
+    o.push(part('s', Rd, sc, SR), part('s', K, [0, -0.42, -0.05], [0.8, 0.3, 0.78]), part('s', K, hc, HR));
+    for (const [x, z] of [[0.36, 0.22], [-0.36, 0.22], [0.48, -0.3], [-0.48, -0.3], [0.18, -0.62], [-0.18, -0.62], [0, -0.05]]) {
+      const y = sc[1] + SR[1] * Math.sqrt(Math.max(0, 1 - (x / SR[0]) ** 2 - ((z - sc[2]) / SR[2]) ** 2));
+      o.push(part('s', K, [x, y - 0.04, z], [0.15, 0.07, 0.15]));
+    }
+    for (const k of [-1, 1]) {
+      const ex = k * 0.13, ey = -0.04, ez = front(hc, HR, ex, ey, 0.04);
+      o.push(part('s', WHITE, [ex, ey, ez], 0.09), part('s', K, [ex, ey + 0.01, ez + 0.07], 0.045), part('s', WHITE, [ex + 0.02, ey + 0.035, ez + 0.1], 0.016),
+        part('y', K, [k * 0.12, 0.28, 0.66], [0.02, 0.24, 0.02], [0.3, 0, -k * 0.4]), part('s', K, [k * 0.17, 0.39, 0.7], 0.05),
+        part('s', BLUSH, [k * 0.22, -0.17, front(hc, HR, k * 0.22, -0.17, 0.03)], [0.06, 0.04, 0.03]),
+        part('s', K, [k * 0.62, -0.55, 0.25], [0.09, 0.05, 0.13]), part('s', K, [k * 0.66, -0.55, -0.25], [0.09, 0.05, 0.13]));
+    }
+    o.push(part('t', WHITE, [0, -0.2, front(hc, HR, 0, -0.22, 0.005)], [0.08, 0.08, 0.05], [0, 0, Math.PI]));
+    return o;
+  } },
+  octopus: { r: 0.42, a: 'an octopus', make() {
+    const P = '#b07ef0', L = '#d6b8ff', o = [], hc = [0, 0.12, 0], HR = [0.66, 0.7, 0.62];
+    o.push(part('s', P, hc, HR));
+    for (const [x, y] of [[0.3, 0.6], [-0.22, 0.66], [0.05, 0.78]]) o.push(part('s', L, [x, y, front(hc, HR, x, y, 0.03) - 0.25], [0.09, 0.06, 0.09]));
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2 + Math.PI / 8, x = Math.cos(a), z = Math.sin(a);
+      o.push(part('s', P, [x * 0.46, -0.6, z * 0.44], [0.15, 0.3, 0.15], [-z * 0.5, 0, x * 0.5]), part('s', P, [x * 0.64, -0.84, z * 0.6], 0.11));
+    }
+    face(o, hc, HR, { ex: 0.22, ey: 0.0, es: 0.1, my: -0.22, ms: 0.1 });
+    return o;
+  } },
+  unicorn: { r: 0.42, a: 'a unicorn', make() {
+    const W = '#fdf7ff', L = '#ffc8e4', o = [], hc = [0, 0.22, 0.06], R = 0.5;
+    o.push(part('s', W, [0, -0.42, 0], [0.58, 0.5, 0.52]), part('s', W, hc, R));
+    const sz = front(hc, R, 0, 0.06, 0.14);
+    o.push(part('s', L, [0, 0.06, sz], [0.27, 0.2, 0.18]), part('c', '#ffd23f', [0, 0.84, 0.26], [0.09, 0.36, 0.09], [0.35, 0, 0]));
+    ['#ff6b9a', '#ffa94d', '#ffe066', '#7bd389', '#6cc4ff', '#b07ef0'].forEach((c, i) => {
+      const t = i / 5; o.push(part('s', c, [0, 0.72 - t * 0.78, -0.08 - Math.sin(t * Math.PI / 2) * 0.42], 0.15));
+    });
+    o.push(part('s', '#ff6b9a', [0.1, 0.7, 0.1], 0.1));
+    for (const k of [-1, 1]) o.push(
+      part('s', INK, [k * 0.08, 0.08, sz + 0.17], [0.025, 0.035, 0.02]),
+      part('c', W, [k * 0.3, 0.66, -0.02], [0.11, 0.2, 0.08], [0, 0, -k * 0.3]),
+      part('s', L, [k * 0.27, -0.88, 0.2], [0.16, 0.11, 0.22]));
+    face(o, hc, R, { ex: 0.18, ey: 0.15, smile: false });
+    return o;
+  } },
+  dino: { r: 0.44, a: 'a dinosaur', make() {
+    const G = '#74cf7f', L = '#e6f7b8', S = '#ffb347', o = [], hc = [0, 0.28, 0.1], HR = [0.44, 0.4, 0.46];
+    o.push(part('s', G, [0, -0.4, -0.04], [0.6, 0.54, 0.56]), part('s', L, [0, -0.4, 0.28], [0.38, 0.38, 0.26]), part('s', G, hc, HR),
+      part('s', G, [0, 0.18, 0.42], [0.34, 0.24, 0.28]), part('s', G, [0, -0.72, -0.6], [0.2, 0.16, 0.32]),
+      part('t', INK, [0, 0.12, 0.66], [0.12, 0.1, 0.06], [0, 0, Math.PI]));
+    for (const [y, z, rx] of [[0.7, -0.05, 0], [0.48, -0.32, -0.6], [0.16, -0.5, -1.0], [-0.22, -0.62, -1.3], [-0.58, -0.62, -1.7]]) o.push(part('c', S, [0, y, z], [0.12, 0.2, 0.07], [rx, 0, 0]));
+    for (const k of [-1, 1]) o.push(
+      part('s', INK, [k * 0.1, 0.27, 0.68], 0.025), part('s', G, [k * 0.42, -0.22, 0.3], [0.09, 0.13, 0.09]),
+      part('s', G, [k * 0.3, -0.88, 0.2], [0.2, 0.13, 0.24]));
+    face(o, hc, HR, { ex: 0.17, ey: 0.14, smile: false });
+    return o;
+  } },
+};
+const KINDS = Object.keys(TOYS);
+function merge(parts) {
+  const pos = [], nor = [], col = [], idx = [], m = new THREE.Matrix4(), nm = new THREE.Matrix3(), v = new THREE.Vector3(), c = new THREE.Color();
+  for (const p of parts) {
+    const g = SHAPES[p.g], P = g.attributes.position, N = g.attributes.normal, base = pos.length / 3;
+    m.compose(p.pos, p.q, p.s); nm.getNormalMatrix(m); c.set(p.c);
+    for (let i = 0; i < P.count; i++) {
+      v.fromBufferAttribute(P, i).applyMatrix4(m); pos.push(v.x, v.y, v.z);
+      v.fromBufferAttribute(N, i).applyMatrix3(nm).normalize(); nor.push(v.x, v.y, v.z);
+      col.push(c.r, c.g, c.b);
+    }
+    for (let i = 0; i < g.index.count; i++) idx.push(g.index.getX(i) + base);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  geo.setIndex(idx); geo.computeBoundingSphere();
+  return geo;
+}
+const TOY_GEO = Object.fromEntries(KINDS.map((k) => [k, merge(TOYS[k].make())]));
+const toyMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82 });
+
+/* ======== physics: every toy is a soft ball that falls, piles up and rolls a little ======== */
+// Position-based: each step moves the balls by their last movement plus gravity, then pushes overlapping balls apart
+// and keeps them inside the box. Toys that stay still fall asleep (and act as solid ground) until something wakes them.
+const SUB = 1 / 120;
+const toys = [];
+let physAcc = 0;
+const CHUTE_WALLS = [
+  { min: [HOLE.x1 - 0.03, 0, HOLE.z0 - 0.03], max: [HOLE.x1 + 0.03, HOLE.wall, BZ] },
+  { min: [HOLE.x0, 0, HOLE.z0 - 0.03], max: [HOLE.x1 + 0.03, HOLE.wall, HOLE.z0 + 0.03] },
+];
+const inHole = (p) => p.x < HOLE.x1 && p.z > HOLE.z0;
+function randomRest() { return new THREE.Quaternion().setFromEuler(_eu.set(rand(-0.25, 0.2), rand(-0.75, 0.75), rand(-0.22, 0.22))); }
+function addToy(kind, x, y, z) {
+  const T = TOYS[kind], mesh = new THREE.Mesh(TOY_GEO[kind], toyMat);
+  mesh.castShadow = mesh.receiveShadow = true; scene.add(mesh);
+  const t = { kind, r: T.r * rand(0.96, 1.04), p: new THREE.Vector3(x, y, z), prev: new THREE.Vector3(x, y, z), mesh,
+    rest: randomRest(), spin: new THREE.Vector3(rand(-3, 3), rand(-3, 3), rand(-3, 3)), held: false, asleep: false, still: 0, ground: false, landed: 0, bob: 0 };
+  mesh.quaternion.copy(t.rest); mesh.userData.toy = t; toys.push(t);
+  return t;
+}
+function wakeAll() { for (const t of toys) { t.asleep = false; t.still = 0; } }
+function pushOutOfBox(t, b) {
+  const p = t.p, qx = clamp(p.x, b.min[0], b.max[0]), qy = clamp(p.y, b.min[1], b.max[1]), qz = clamp(p.z, b.min[2], b.max[2]);
+  const dx = p.x - qx, dy = p.y - qy, dz = p.z - qz, d2 = dx * dx + dy * dy + dz * dz;
+  if (d2 >= t.r * t.r) return;
+  if (d2 < 1e-10) { p.y = b.max[1] + t.r; t.ground = true; return; }
+  const d = Math.sqrt(d2), k = (t.r - d) / d;
+  p.x += dx * k; p.y += dy * k; p.z += dz * k;
+  if (dy / d > 0.5) t.ground = true;
+}
+function keepIn(t) {
+  const p = t.p, r = t.r;
+  if (inHole(p) && p.y < HOLE.wall) {   // inside the chute: it falls through
+    p.x = clamp(p.x, HOLE.x0 + r * 0.9, HOLE.x1 - r * 0.9); p.z = clamp(p.z, HOLE.z0 + r * 0.9, HOLE.z1 - r * 0.9);
+  } else if (p.y < r) { p.y = r; t.ground = true; }
+  p.x = clamp(p.x, -BX + r, BX - r); p.z = clamp(p.z, -BZ + r, BZ - r); if (p.y > BTOP - r) p.y = BTOP - r;
+  for (const b of CHUTE_WALLS) pushOutOfBox(t, b);
+}
+function substep(h) {
+  for (const t of toys) {
+    if (t.held || t.asleep) continue;
+    const vx = t.p.x - t.prev.x, vy = t.p.y - t.prev.y, vz = t.p.z - t.prev.z;
+    t.prev.copy(t.p);
+    t.p.x += vx * 0.998; t.p.y += vy * 0.998 - GRAVITY * h * h; t.p.z += vz * 0.998;
+    t.fall = vy / h; t.ground = false;
+  }
+  for (let it = 0; it < 4; it++) {
+    for (let i = 0; i < toys.length; i++) {
+      const a = toys[i], wa = a.held || a.asleep ? 0 : 1;
+      for (let j = i + 1; j < toys.length; j++) {
+        const b = toys[j], wb = b.held || b.asleep ? 0 : 1;
+        if (wa + wb === 0) continue;
+        const dx = a.p.x - b.p.x, dy = a.p.y - b.p.y, dz = a.p.z - b.p.z, min = a.r + b.r, d2 = dx * dx + dy * dy + dz * dz;
+        if (d2 >= min * min) continue;
+        const d = Math.sqrt(d2) || 1e-6, k = (min - d) / d / (wa + wb);
+        a.p.x += dx * k * wa; a.p.y += dy * k * wa; a.p.z += dz * k * wa;
+        b.p.x -= dx * k * wb; b.p.y -= dy * k * wb; b.p.z -= dz * k * wb;
+        if (dy / d > 0.45) a.ground = true; else if (-dy / d > 0.45) b.ground = true;
+      }
+    }
+    for (const t of toys) if (!t.held && !t.asleep) keepIn(t);
+  }
+  for (const t of toys) {
+    if (t.held || t.asleep) continue;
+    if (t.ground && !inHole(t.p)) {   // plush grips: sliding slows right down (but nothing stays perched on the hole's wall)
+      t.p.x = t.prev.x + (t.p.x - t.prev.x) * 0.86; t.p.z = t.prev.z + (t.p.z - t.prev.z) * 0.86;
+      if (t.fall < -2.5) t.landed = Math.max(t.landed, -t.fall);
+    }
+    const sp = t.p.distanceTo(t.prev) / h;
+    if (sp < 0.07 && !inHole(t.p)) { t.still += h; if (t.still > 0.35) { t.asleep = true; t.prev.copy(t.p); } } else t.still = 0;
+    if (inHole(t.p) && t.p.y < -0.35) t.won = true;
+  }
+}
+function physics(dt) {
+  physAcc += Math.min(dt, 0.05);
+  while (physAcc >= SUB) { physAcc -= SUB; substep(SUB); }
+  for (let i = toys.length - 1; i >= 0; i--) if (toys[i].won) prizeIn(toys[i]);
+}
+// how high the open claw stops over (x, z): on the highest toy it meets, or just above the floor
+function stopHeight(x, z) {
+  let y = x < HOLE.x1 + 0.5 && z > HOLE.z0 - 0.5 ? HOLE.wall + 0.8 : FLOOR_STOP;
+  for (const t of toys) {
+    if (t.held) continue;
+    const h = Math.hypot(t.p.x - x, t.p.z - z);
+    if (h < t.r + 0.3) y = Math.max(y, t.p.y + GRIP - Math.max(0, h - t.r * 0.6) * 0.5);
+  }
+  return Math.min(y, TOP_Y);
+}
+// the toy the claw would close on from (x, z): the one it lands on, if that one is near enough the middle
+function candidateAt(x, z) {
+  const stop = stopHeight(x, z); let best = null;
+  for (const t of toys) {
+    if (t.held) continue;
+    const h = Math.hypot(t.p.x - x, t.p.z - z);
+    if (h < t.r * GRAB_REACH && t.p.y + GRIP >= stop - 0.08 && (!best || t.p.y > best.p.y)) best = t;
+  }
+  return best;
+}
+// the top of whatever is right under (x, z), for the aiming ring
+function surfaceAt(x, z) {
+  let y = inHole({ x, z }) ? -0.02 : 0.005;
+  for (const t of toys) {
+    if (t.held) continue;
+    const h = Math.hypot(t.p.x - x, t.p.z - z);
+    if (h < t.r) y = Math.max(y, t.p.y + Math.sqrt(t.r * t.r - h * h) * 0.92);
+  }
+  return y;
+}
+
+/* ======== filling the machine ======== */
+let got = store.get('got', {});   // kind -> how many won, ever
+function chooseKind() {
+  const inside = {}; for (const t of toys) inside[t.kind] = (inside[t.kind] || 0) + 1;
+  const w = KINDS.map((k) => ((inside[k] || 0) >= 3 ? 0 : got[k] ? 1 : NEW_TOY_PULL));
+  let r = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < KINDS.length; i++) { r -= w[i]; if (r < 0) return KINDS[i]; }
+  return pick(KINDS);
+}
+function freeSpot() {
+  for (;;) {
+    const x = rand(-1.7, 1.7), z = rand(-1.05, 1.05);
+    if (!(x < HOLE.x1 + 0.55 && z > HOLE.z0 - 0.55)) return [x, z];
+  }
+}
+function fillMachine() {
+  for (let i = 0; i < TOYS_IN; i++) { const [x, z] = freeSpot(); addToy(chooseKind(), x, 0.5 + i * 0.3, z); }
+  for (let i = 0; i < 900; i++) substep(SUB);   // settle before anyone sees it
+  for (const t of [...toys]) if (t.won || inHole(t.p)) { scene.remove(t.mesh); toys.splice(toys.indexOf(t), 1); }   // no free prizes at the start
+  for (const t of toys) { t.landed = 0; t.mesh.quaternion.copy(t.rest); }
+}
+const refill = { queue: 0, t: 0 };
+function refillIfLow() { if (toys.length < REFILL_AT) refill.queue = TOYS_IN - toys.length; }
+
+/* ======== the game: coin, aim, grab, carry, prize ======== */
+const claw = {
+  state: 'coin', t: 0, x: HOLE_X, z: HOLE_Z, y: TOP_Y, vx: 0, vz: 0, lvx: 0, lvz: 0, sx: 0, sz: 0, svx: 0, svz: 0,
+  open: 0, grip: null, target: null, flick: 0, cand: null, y0: 0, dist0: 1, result: '',
+};
+const game = { mode: 'play', misses: 0, idle: 0, moved: false, prize: false, slipped: false, queue: [], flash: 0, flapOpen: 0 };
+const input = { jx: 0, jz: 0, kx: 0, kz: 0 };
+const hubPos = new THREE.Vector3();
+
+function coinTap() {
+  sfx.init();
+  if (game.mode !== 'play' || claw.state !== 'coin' || coinBtn.hidden || flying) return;
+  flying = true; sfx.tap(); buzz(10);
+  const from = coinBtn.getBoundingClientRect(), to = toScreen(SLOT);
+  flyCoin.hidden = false; flyCoin.style.transition = 'none';
+  flyCoin.style.transform = `translate(${from.left + from.width / 2 - 32}px, ${from.top + from.height / 2 - 32}px) scale(${from.width / 64})`;
+  coinBtn.hidden = true;
+  flyCoin.getBoundingClientRect();   // (start the transition from here)
+  flyCoin.style.transition = '';
+  flyCoin.style.transform = `translate(${to.x - 32}px, ${to.y - 32}px) scale(0.35) rotateY(80deg)`;
+  setTimeout(() => { flyCoin.hidden = true; flying = false; insertCoin(); }, 560);
+}
+let flying = false;
+function insertCoin() {
+  sfx.coin(); buzz(25); game.flash = 1.4;
+  claw.state = 'aim'; claw.t = 0; claw.target = { x: 0.25, z: -0.15 };
+  game.idle = 0; game.moved = false; game.prize = false; game.slipped = false;
+  sfx.music(true); showButtons();
+  setTimeout(() => help('move', 'Move the claw over a toy. Then press the red button!'), 500);
+}
+function pressGrab() {
+  sfx.init();
+  if (game.mode !== 'play' || claw.state !== 'aim') return;
+  claw.state = 'open'; claw.t = 0; claw.target = null; sfx.clack(); buzz(15); showButtons();
+}
+function closeOn() {
+  claw.state = 'close'; claw.t = 0; wakeAll(); sfx.clack();
+  const c = candidateAt(claw.x, claw.z);
+  if (!c) {
+    claw.grip = null; claw.result = 'empty';
+    // landed on the edge of a toy: give it a little boop
+    for (const t of toys) {
+      const dx = t.p.x - claw.x, dz = t.p.z - claw.z, h = Math.hypot(dx, dz);
+      if (h < t.r + 0.35 && Math.abs(t.p.y + GRIP - claw.y) < 0.4) { t.prev.x = t.p.x - dx / h * 0.012; t.prev.z = t.p.z - dz / h * 0.012; t.prev.y = t.p.y - 0.01; sfx.boop(); }
+    }
+    return;
+  }
+  const h = Math.hypot(c.p.x - claw.x, c.p.z - claw.z);
+  const under = toys.filter((u) => u !== c && u.p.y > c.p.y + 0.15 && u.p.distanceTo(c.p) < u.r + c.r + 0.06).length;
+  const chance = lerp(HOLD_CENTRE, HOLD_EDGE, Math.pow(clamp(h / (c.r * GRAB_REACH), 0, 1), 1.5)) * Math.pow(BURIED, under);
+  const sure = game.misses >= LUCKY_AFTER || Math.random() < chance;
+  claw.grip = { toy: c, from: c.p.clone(), sure, slip: sure ? null : Math.random() < 0.55 ? ['up', rand(0.35, 0.9)] : ['carry', rand(0.15, 0.8)] };
+  claw.result = 'caught';
+  c.held = true; c.asleep = false;
+}
+function slipCheck(stage, frac) {
+  const g = claw.grip;
+  if (!g || !g.slip || g.slip[0] !== stage || frac < g.slip[1]) return;
+  const t = g.toy; t.held = false; claw.grip = null; claw.flick = 1; game.slipped = true;
+  t.prev.set(t.p.x - claw.vx * SUB, t.p.y, t.p.z - claw.vz * SUB);
+  t.spin.set(rand(-5, 5), rand(-4, 4), rand(-5, 5)); t.rest = randomRest(); wakeAll();
+  sfx.whoops(); buzz(30);
+  setTimeout(() => { if (!game.prize) sfx.say(pick(['Whoops! It slipped!', 'Oh! It wriggled out!'])); }, 350);
+}
+function release() {
+  const t = claw.grip.toy; t.held = false; claw.grip = null;
+  t.prev.copy(t.p); t.spin.set(rand(-4, 4), rand(-2, 2), rand(-4, 4)); t.rest = randomRest(); wakeAll();
+}
+function endTry() {
+  claw.state = 'coin'; claw.t = 0;
+  if (!game.prize) {
+    game.misses++;
+    if (!game.slipped) { sfx.aww(); setTimeout(() => sfx.say(claw.result === 'empty' ? pick(['Oops! Try again!', 'Nothing there! Try again!']) : 'So close! Try again!'), 450); }
+  }
+  event('try-end', { result: game.prize ? 'prize' : game.slipped ? 'slip' : claw.result, misses: game.misses });
+  refillIfLow(); showButtons();
+}
+
+function updateClaw(dt) {
+  claw.t += dt;
+  let tvx = 0, tvz = 0;
+  switch (claw.state) {
+    case 'coin': case 'aim': {
+      if (claw.state === 'aim') {
+        const ix = clamp(input.jx + input.kx, -1, 1), iz = clamp(input.jz + input.kz, -1, 1);
+        if (ix || iz) { claw.target = null; tvx = ix * MOVE_SPEED; tvz = iz * MOVE_SPEED; game.moved = true; game.idle = 0; }
+      }
+      if (claw.target) {
+        const dx = claw.target.x - claw.x, dz = claw.target.z - claw.z, d = Math.hypot(dx, dz);
+        if (d < 0.005) claw.target = null; else { const sp = Math.min(MOVE_SPEED, d * 4); tvx = dx / d * sp; tvz = dz / d * sp; }
+      }
+      break;
+    }
+    case 'open':
+      claw.open = Math.min(1, claw.open + dt / 0.3);
+      if (claw.open >= 1) { claw.state = 'down'; claw.t = 0; }
+      break;
+    case 'down': {
+      const stop = stopHeight(claw.x, claw.z);
+      claw.y = Math.max(stop, claw.y - DROP_SPEED * dt);
+      if (claw.y <= stop + 1e-4) closeOn();
+      break;
+    }
+    case 'close': {
+      claw.open = Math.max(0, claw.open - dt / 0.5);
+      const g = claw.grip;
+      if (g) { const k = ease(1 - claw.open); g.toy.p.set(lerp(g.from.x, hubPos.x, k), lerp(g.from.y, claw.y - GRIP, k), lerp(g.from.z, hubPos.z, k)); g.toy.prev.copy(g.toy.p); }
+      if (claw.open <= 0 && claw.t > 0.6) { claw.state = 'up'; claw.y0 = claw.y; if (g) { sfx.squeak(); buzz(20); } }
+      break;
+    }
+    case 'up':
+      claw.y = Math.min(TOP_Y, claw.y + LIFT_SPEED * dt);
+      slipCheck('up', (claw.y - claw.y0) / Math.max(0.01, TOP_Y - claw.y0));
+      if (claw.y >= TOP_Y) { claw.state = 'carry'; claw.t = 0; claw.dist0 = Math.max(0.01, Math.hypot(HOLE_X - claw.x, HOLE_Z - claw.z)); }
+      break;
+    case 'carry': {
+      const dx = HOLE_X - claw.x, dz = HOLE_Z - claw.z, d = Math.hypot(dx, dz);
+      slipCheck('carry', 1 - d / claw.dist0);
+      if (d < 0.01) { claw.state = 'drop'; claw.t = 0; break; }
+      const sp = Math.min(CARRY_SPEED, d * 3 + 0.15); tvx = dx / d * sp; tvz = dz / d * sp;
+      break;
+    }
+    case 'drop':
+      claw.open = Math.min(1, claw.open + dt / 0.3);
+      if (claw.grip && claw.open > 0.3) release();
+      if (claw.t > 1.0) { claw.state = 'shut'; claw.t = 0; }
+      break;
+    case 'shut':
+      claw.open = Math.max(0, claw.open - dt / 0.35);
+      if (claw.open <= 0 && claw.t > 0.5) endTry();
+      break;
+  }
+  // the carriage glides; going straight down or up it holds still
+  const kf = Math.min(1, dt * 10);
+  claw.vx += (tvx - claw.vx) * kf; claw.vz += (tvz - claw.vz) * kf;
+  const nx = clamp(claw.x + claw.vx * dt, -LIM_X, LIM_X), nz = clamp(claw.z + claw.vz * dt, -LIM_Z, LIM_Z);
+  if (nx !== claw.x + claw.vx * dt) claw.vx = 0; if (nz !== claw.z + claw.vz * dt) claw.vz = 0;
+  claw.x = nx; claw.z = nz;
+  // the claw swings a little on its cable when the carriage starts and stops
+  const ax = (claw.vx - claw.lvx) / Math.max(dt, 1e-3), az = (claw.vz - claw.lvz) / Math.max(dt, 1e-3);
+  claw.lvx = claw.vx; claw.lvz = claw.vz;
+  const still = ['open', 'down', 'close'].includes(claw.state);
+  claw.svx += (-45 * claw.sx - (still ? 14 : 3.5) * claw.svx - ax * 0.03) * dt; claw.svz += (-45 * claw.sz - (still ? 14 : 3.5) * claw.svz - az * 0.03) * dt;
+  claw.sx = clamp(claw.sx + claw.svx * dt, -0.16, 0.16); claw.sz = clamp(claw.sz + claw.svz * dt, -0.16, 0.16);
+  hubPos.set(claw.x + claw.sx, claw.y, claw.z + claw.sz);
+  if (claw.grip && claw.state !== 'close') { const t = claw.grip.toy; t.p.set(hubPos.x, claw.y - GRIP, hubPos.z); t.prev.copy(t.p); }
+  claw.flick = Math.max(0, claw.flick - dt * 3);
+  // motor hum
+  const sp = Math.hypot(claw.vx, claw.vz) / MOVE_SPEED;
+  if (claw.state === 'down') sfx.motor(0.8, 55); else if (claw.state === 'up') sfx.motor(0.9, 82);
+  else sfx.motor(Math.min(1, sp), 62 + sp * 26);
+}
+
+/* ======== prizes ======== */
+function prizeIn(t) {
+  t.won = false; scene.remove(t.mesh); toys.splice(toys.indexOf(t), 1);
+  game.prize = true; game.misses = 0; game.flapOpen = 1.6;
+  got[t.kind] = (got[t.kind] || 0) + 1; store.set('got', got);
+  game.queue.push({ kind: t.kind, isNew: got[t.kind] === 1 });
+  sfx.thump(); buzz([30, 60, 60]);
+  event('prize', { toy: t.kind, kinds: Object.keys(got).length });
+  if (game.mode === 'play') nextShow();
+}
+// the prize pops out of the door, big in front of everything, then hops onto the shelf
+const ov = { scene: new THREE.Scene(), cam: new THREE.PerspectiveCamera(40, 1, 0.1, 50), toy: null, phase: '', t: 0, from: new THREE.Vector3(), to: new THREE.Vector3(), size: 1 };
+ov.scene.add(new THREE.HemisphereLight(0xffffff, 0x8866aa, 2.0));
+{ const d = new THREE.DirectionalLight(0xffffff, 1.6); d.position.set(1, 3, 4); ov.scene.add(d); }
+const dim = new THREE.Mesh(new THREE.PlaneGeometry(60, 60), new THREE.MeshBasicMaterial({ color: '#1a0b33', transparent: true, opacity: 0, depthWrite: false }));
+dim.position.z = -12; ov.scene.add(dim);
+const raysTex = canvasTex(256, 256, (g, w, h) => {
+  g.translate(w / 2, h / 2);
+  for (let i = 0; i < 14; i++) { g.rotate(Math.PI / 7); g.beginPath(); g.moveTo(0, 0); g.lineTo(-14, -128); g.lineTo(14, -128); g.closePath(); g.fillStyle = 'rgba(255,240,150,.55)'; g.fill(); }
+  const gr = g.createRadialGradient(0, 0, 0, 0, 0, 128); gr.addColorStop(0, 'rgba(255,255,220,1)'); gr.addColorStop(0.35, 'rgba(255,220,120,.6)'); gr.addColorStop(1, 'rgba(255,200,100,0)');
+  g.globalCompositeOperation = 'destination-in'; g.fillStyle = gr; g.fillRect(-128, -128, 256, 256);
+});
+const burst = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: raysTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+burst.position.z = -9; ov.scene.add(burst);
+const OV_D = 5;
+function ovPoint(sx, sy, out) {
+  const tan = Math.tan(THREE.MathUtils.degToRad(ov.cam.fov / 2));
+  return out.set((sx / W * 2 - 1) * tan * OV_D * ov.cam.aspect, -(sy / H * 2 - 1) * tan * OV_D, -OV_D);
+}
+function nextShow() {
+  const p = game.queue.shift(); if (!p) return;
+  game.mode = 'prize'; showButtons();
+  ov.toy = new THREE.Mesh(TOY_GEO[p.kind], toyMat); ov.scene.add(ov.toy);
+  ov.kind = p.kind; ov.phase = 'in'; ov.t = 0;
+  const d = toScreen(DOOR); ovPoint(d.x, d.y, ov.from);
+  const tan = Math.tan(THREE.MathUtils.degToRad(ov.cam.fov / 2));
+  ov.size = Math.min(0.85, tan * OV_D * Math.min(1, ov.cam.aspect) * 0.48);
+  ov.to.set(0, ov.size * 0.15, -OV_D);
+  setTimeout(() => { sfx.fanfare(); confetti(); }, 250);
+  const all = p.isNew && KINDS.every((k) => got[k]);   // the last new one
+  if (all) event('shelf-full', {});
+  setTimeout(() => sfx.say(all ? `You got ${TOYS[p.kind].a}! You found all the toys!` : pick(['Yay! You got ', 'Hooray! ', 'Wow! ']) + TOYS[p.kind].a + '!'), 700);
+  $('#tapcatch').hidden = false;
+}
+function showDone() {
+  if (ov.phase !== 'show') return;
+  ov.phase = 'out'; ov.t = 0; $('#tapcatch').hidden = true; sfx.plop();
+  const b = shelfBtn.getBoundingClientRect(); ovPoint(b.left + 24, b.top + 24, ov.from);
+}
+function updateShow(dt) {
+  if (!ov.phase) return;
+  ov.t += dt;
+  const T = ov.toy, s = ov.size;
+  if (ov.phase === 'in') {
+    const k = ease(Math.min(1, ov.t / 0.75));
+    T.position.lerpVectors(ov.from, ov.to, k); T.position.y += Math.sin(k * Math.PI) * s * 0.8;
+    T.scale.setScalar(lerp(0.15, s, k)); T.rotation.set(0, (1 - k) * Math.PI * 4, 0);
+    dim.material.opacity = 0.55 * k; burst.scale.setScalar(s * 5 * k);
+    if (ov.t >= 0.75) { ov.phase = 'show'; ov.t = 0; }
+  } else if (ov.phase === 'show') {
+    T.position.copy(ov.to); T.position.y += Math.abs(Math.sin(ov.t * 4)) * s * 0.12;
+    T.rotation.set(0.1, Math.sin(ov.t * 2) * 0.5, Math.sin(ov.t * 4) * 0.08);
+    T.scale.setScalar(s * (1 + Math.sin(ov.t * 8) * 0.015));
+    if (ov.t > PRIZE_SHOW) showDone();
+  } else if (ov.phase === 'out') {
+    const k = ease(Math.min(1, ov.t / 0.55));
+    T.position.lerpVectors(ov.to, ov.from, k); T.position.y += Math.sin(k * Math.PI) * s * 0.6;
+    T.scale.setScalar(lerp(s, 0.12, k)); T.rotation.y += dt * 8;
+    dim.material.opacity = 0.55 * (1 - k); burst.scale.setScalar(s * 5 * (1 - k));
+    if (ov.t >= 0.55) {
+      ov.scene.remove(T); ov.toy = null; ov.phase = '';
+      drawShelfBtn(true); sfx.jingle();
+      game.mode = 'play';
+      if (game.queue.length) nextShow(); else showButtons();
+    }
+  }
+  burst.rotation.z += dt * 0.6;
+}
+function confetti() {
+  if (REDUCED) return;
+  const colours = ['#ff5fa2', '#ffd23f', '#6fe3ff', '#7bd389', '#b07ef0', '#ff8a1f'];
+  for (let i = 0; i < 46; i++) {
+    const c = document.createElement('div'); c.className = 'confetti';
+    c.style.left = Math.random() * 100 + 'vw'; c.style.background = pick(colours);
+    c.style.animationDuration = rand(1.6, 3) + 's'; c.style.animationDelay = rand(0, 0.5) + 's';
+    document.body.appendChild(c); setTimeout(() => c.remove(), 4000);
+  }
+}
+
+/* ======== the shelf of toys won ======== */
+const shelfBtn = $('#shelfBtn'), shelfEl = $('#shelf');
+let thumbs = {};
+// one picture of each toy, drawn once with the game's own renderer
+function renderThumbs() {
+  const S = 160, dpr = renderer.getPixelRatio(), px = Math.round(S * dpr), cv = renderer.domElement;
+  if (cv.height < px || cv.width < px) return;
+  const ts = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 20);
+  ts.add(new THREE.HemisphereLight(0xffffff, 0x8866aa, 1.9)); const d = new THREE.DirectionalLight(0xffffff, 1.5); d.position.set(1.5, 3, 4); ts.add(d);
+  cam.position.set(0, 0.45, 4.3); cam.lookAt(0, -0.02, 0);
+  const out = document.createElement('canvas'); out.width = out.height = px; const g = out.getContext('2d');
+  renderer.setScissorTest(true); renderer.setViewport(0, 0, S, S); renderer.setScissor(0, 0, S, S);
+  for (const k of KINDS) {
+    const m = new THREE.Mesh(TOY_GEO[k], toyMat); m.rotation.set(0.05, -0.35, 0); ts.add(m);
+    renderer.clear(); renderer.render(ts, cam);
+    g.clearRect(0, 0, px, px); g.drawImage(cv, 0, cv.height - px, px, px, 0, 0, px, px);
+    thumbs[k] = out.toDataURL(); ts.remove(m);
+  }
+  renderer.setScissorTest(false); renderer.setViewport(0, 0, W, H);
+}
+function drawShelfBtn(pop) {
+  const n = KINDS.filter((k) => got[k]).length;
+  $('#shelfImg').src = thumbs.bear || ''; $('#shelfCount').textContent = n;
+  if (pop) { shelfBtn.classList.remove('pop'); void shelfBtn.offsetWidth; shelfBtn.classList.add('pop'); }
+}
+function openShelf() {
+  sfx.init(); sfx.tap();
+  const n = KINDS.filter((k) => got[k]).length;
+  $('#shelfTop').innerHTML = `${n} / ${KINDS.length}${n === KINDS.length ? ' <span aria-hidden="true">👑</span>' : ''}`;
+  const box = $('#shelves'); box.innerHTML = '';
+  for (const k of KINDS) {
+    const b = document.createElement('button'); b.className = 'slot' + (got[k] ? ' got' : '');
+    b.setAttribute('aria-label', got[k] ? TOYS[k].a : 'Not found yet');
+    b.innerHTML = `<img src="${thumbs[k] || ''}" alt="">${got[k] > 1 ? `<b>${got[k]}</b>` : ''}`;
+    b.addEventListener('click', () => {
+      if (!got[k]) { sfx.boop(); return; }
+      sfx.squeak(); b.classList.remove('jig'); void b.offsetWidth; b.classList.add('jig');
+      sfx.say(TOYS[k].a.replace(/^an? /, 'The ') + (got[k] > 1 ? `! You have ${got[k]}!` : '!'));
+    });
+    box.appendChild(b);
+  }
+  shelfEl.hidden = false;
+}
+shelfBtn.addEventListener('click', () => { if (game.mode === 'play') openShelf(); });
+$('#shelfClose').addEventListener('click', () => { sfx.tap(); shelfEl.hidden = true; });
+shelfEl.addEventListener('click', (e) => { if (e.target === shelfEl) shelfEl.hidden = true; });
+
+/* ======== controls ======== */
+const stick = $('#stick'), knob = $('#knob'), grabBtn = $('#grab'), coinBtn = $('#coin'), flyCoin = $('#flycoin');
+function showButtons() {
+  const aim = game.mode === 'play' && claw.state === 'aim';
+  coinBtn.hidden = !(game.mode === 'play' && claw.state === 'coin') || flying;
+  grabBtn.hidden = !coinBtn.hidden;
+  grabBtn.classList.toggle('off', !aim); grabBtn.classList.remove('call');
+  stick.classList.toggle('off', !aim); stick.classList.remove('nudge');
+  coinBtn.classList.remove('call');
+  game.idle = 0;
+}
+let stickId = null;
+function stickMove(e) {
+  const r = stick.getBoundingClientRect(), max = r.width * 0.3;
+  let dx = e.clientX - (r.left + r.width / 2), dy = e.clientY - (r.top + r.height / 2);
+  const d = Math.hypot(dx, dy); if (d > max) { dx *= max / d; dy *= max / d; }
+  knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+  const jx = dx / max, jz = dy / max, m = Math.hypot(jx, jz);
+  input.jx = m < 0.18 ? 0 : jx; input.jz = m < 0.18 ? 0 : jz;
+}
+stick.addEventListener('pointerdown', (e) => {
+  e.preventDefault(); sfx.init();
+  if (claw.state === 'coin' && game.mode === 'play') { nudgeCoin(); return; }
+  stickId = e.pointerId; try { stick.setPointerCapture(e.pointerId); } catch {} stickMove(e); stick.classList.remove('nudge');
+});
+stick.addEventListener('pointermove', (e) => { if (e.pointerId === stickId) stickMove(e); });
+const stickUp = (e) => { if (e.pointerId !== stickId) return; stickId = null; input.jx = input.jz = 0; knob.style.transform = ''; };
+stick.addEventListener('pointerup', stickUp); stick.addEventListener('pointercancel', stickUp);
+grabBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); pressGrab(); });
+coinBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); coinTap(); });
+$('#tapcatch').addEventListener('pointerdown', (e) => { e.preventDefault(); showDone(); });
+function nudgeCoin() { sfx.boop(); coinBtn.classList.add('call'); help('coin', 'Tap the coin!'); }
+// tap a toy (or drag on the machine) and the claw slides over there
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.45), hit = new THREE.Vector3();
+let dragId = null;
+function aimAt(e, first) {
+  ndc.set(e.clientX / W * 2 - 1, -(e.clientY / H) * 2 + 1); ray.setFromCamera(ndc, camera);
+  let x, z;
+  const h = first && ray.intersectObjects(toys.map((t) => t.mesh), false)[0];
+  if (h) ({ x, z } = h.object.userData.toy.p);
+  else if (ray.ray.intersectPlane(aimPlane, hit)) ({ x, z } = hit);
+  else return;
+  claw.target = { x: clamp(x, -LIM_X, LIM_X), z: clamp(z, -LIM_Z, LIM_Z) };
+  game.moved = true; game.idle = 0; stick.classList.remove('nudge');
+}
+canvas.addEventListener('pointerdown', (e) => {
+  sfx.init();
+  if (game.mode !== 'play') return;
+  if (claw.state === 'coin') { nudgeCoin(); return; }
+  if (claw.state !== 'aim') return;
+  dragId = e.pointerId; try { canvas.setPointerCapture(e.pointerId); } catch {} aimAt(e, true);
+});
+canvas.addEventListener('pointermove', (e) => { if (e.pointerId === dragId && claw.state === 'aim') aimAt(e, false); });
+const dragUp = (e) => { if (e.pointerId === dragId) dragId = null; };
+canvas.addEventListener('pointerup', dragUp); canvas.addEventListener('pointercancel', dragUp);
+const keys = new Set();
+function readKeys() {
+  input.kx = (keys.has('ArrowRight') || keys.has('KeyD') ? 1 : 0) - (keys.has('ArrowLeft') || keys.has('KeyA') ? 1 : 0);
+  input.kz = (keys.has('ArrowDown') || keys.has('KeyS') ? 1 : 0) - (keys.has('ArrowUp') || keys.has('KeyW') ? 1 : 0);
+}
+addEventListener('keydown', (e) => {
+  if (e.code === 'Space' || e.code === 'Enter') {
+    e.preventDefault(); if (e.repeat) return;
+    if (!shelfEl.hidden) { shelfEl.hidden = true; return; }
+    if (game.mode === 'prize') showDone(); else if (claw.state === 'coin') coinTap(); else pressGrab();
+    return;
+  }
+  if (e.code === 'Escape') shelfEl.hidden = true;
+  keys.add(e.code); readKeys();
+});
+addEventListener('keyup', (e) => { keys.delete(e.code); readKeys(); });
+addEventListener('blur', () => { keys.clear(); readKeys(); });
+const muteBtn = $('#mute');
+const drawMute = () => { muteBtn.textContent = sfx.muted ? '🔇' : '🔈'; };
+drawMute();
+muteBtn.addEventListener('click', () => { sfx.init(); sfx.toggle(); drawMute(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) { sfx.pause(); sfx.motor(0, 60); } else sfx.resume(); });
+
+/* ======== layout: fit the machine into the space the controls leave ======== */
+let W = 1, H = 1;
+const PITCH = 0.3, LOOK = new THREE.Vector3(0, 1.9, 0), _v = new THREE.Vector3();
+function placeCamera(d) {
+  camera.position.set(0, LOOK.y + Math.sin(PITCH) * d, Math.cos(PITCH) * d); camera.lookAt(LOOK);
+  camera.updateMatrixWorld(); camera.updateProjectionMatrix();
+}
+function fits(pts, a) {
+  for (const p of pts) {
+    _v.copy(p).project(camera);
+    const sx = (_v.x + 1) / 2 * W, sy = (1 - _v.y) / 2 * H;
+    if (sx < a.x0 || sx > a.x1 || sy < a.y0 || sy > a.y1) return false;
+  }
+  return true;
+}
+function layout() {
+  W = innerWidth; H = innerHeight;
+  renderer.setSize(W, H, false);
+  const land = W > H * 1.05, st = stick.getBoundingClientRect(), hb = $('#home').getBoundingClientRect();
+  const btnRight = W - parseFloat(getComputedStyle(grabBtn).right) - grabBtn.offsetWidth;   // (the button may be hidden)
+  const a = land ? { x0: st.right + 8, x1: btnRight - 8, y0: 8, y1: H - 8 } : { x0: 8, x1: W - 8, y0: hb.bottom + 6, y1: st.top - 10 };
+  camera.aspect = W / H;
+  camera.setViewOffset(W, H, W / 2 - (a.x0 + a.x1) / 2, H / 2 - (a.y0 + a.y1) / 2, W, H);
+  // the glass box, the sign (when there's room) and the prize door must all show
+  // (sideways there's less height, so the sign and the bottom of the prize door may be cut off)
+  const top = land ? BTOP + 0.3 : BTOP + 1.45, bottom = land ? -0.85 : -1.4;
+  const pts = [];
+  for (const x of [-2.5, 2.5]) for (const [y, z] of [[bottom, 1.85], [top, 1.7], [top, -1.75]]) pts.push(new THREE.Vector3(x, y, z));
+  let lo = 3, hi = 80;
+  for (let i = 0; i < 26; i++) { const d = (lo + hi) / 2; placeCamera(d); if (fits(pts, a)) hi = d; else lo = d; }
+  placeCamera(hi);
+  ov.cam.aspect = W / H; ov.cam.updateProjectionMatrix();
+}
+function toScreen(p) { _v.copy(p).project(camera); return { x: (_v.x + 1) / 2 * W, y: (1 - _v.y) / 2 * H }; }
+addEventListener('resize', layout);
+screen.orientation?.addEventListener?.('change', () => setTimeout(layout, 100));
+
+/* ======== each frame ======== */
+const _q = new THREE.Quaternion(), _ax = new THREE.Vector3();
+function updateVisuals(dt, time) {
+  // gantry, cable and claw
+  carriage.position.set(claw.x, RAIL_Y - 0.06, claw.z); crossbar.position.z = claw.z;
+  const top = carriage.position.clone().setY(RAIL_Y - 0.14), dir = hubPos.clone().add(new THREE.Vector3(0, 0.12, 0)).sub(top), len = dir.length();
+  cable.position.copy(top).addScaledVector(dir, 0.5); cable.scale.y = len; cable.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
+  clawG.position.copy(hubPos); clawG.rotation.set(claw.sz * 0.9, 0, -claw.sx * 0.9);
+  const shut = claw.grip ? (claw.grip.toy.r - 0.42) * 1.2 : SHUT_ANGLE;
+  const ang = lerp(shut, OPEN_ANGLE, ease(claw.open)) + claw.flick * 0.35 + (claw.state === 'aim' ? Math.sin(time * 3) * 0.02 : 0);
+  for (const p of prongs) p.rotation.z = ang;
+  // aiming ring and beam
+  const aiming = game.mode === 'play' && ['aim', 'open', 'down'].includes(claw.state);
+  ring.visible = beam.visible = aiming;
+  claw.cand = claw.state === 'aim' ? candidateAt(claw.x, claw.z) : null;
+  if (aiming) {
+    const sy = surfaceAt(hubPos.x, hubPos.z) + 0.02, bottom = claw.y - (claw.open > 0.5 ? 0.72 : 0.95);
+    ring.position.set(hubPos.x, sy, hubPos.z); ring.scale.setScalar(1 + Math.sin(time * 6) * 0.08);
+    ring.material.color.set(claw.cand ? '#7dff8a' : '#fff35c');
+    const bl = Math.max(0.01, bottom - sy); beam.position.set(hubPos.x, sy + bl / 2, hubPos.z); beam.scale.y = bl; beam.visible = aiming && bl > 0.05;
+  }
+  // toys: follow their balls; tumble while flying, settle back upright when they land
+  let thud = 0;
+  for (const t of toys) {
+    if (t.landed) { thud = Math.max(thud, t.landed); t.landed = 0; }
+    t.bob = lerp(t.bob, t === claw.cand ? 1 : 0, Math.min(1, dt * 8));
+    t.mesh.position.copy(t.p); t.mesh.position.y += t.bob * Math.abs(Math.sin(time * 5)) * 0.05;
+    t.mesh.scale.setScalar(t.r * (1 + t.bob * 0.05));
+    if (t.held) { t.rest.setFromEuler(_eu.set(0.1, Math.sin(time * 1.5) * 0.25, 0)); t.mesh.quaternion.slerp(t.rest, Math.min(1, dt * 5)); continue; }
+    const airborne = !t.asleep && !t.ground && t.spin.lengthSq() > 0.05;
+    if (airborne) {
+      const w = t.spin.length(); _ax.copy(t.spin).divideScalar(w); _q.setFromAxisAngle(_ax, w * dt); t.mesh.quaternion.premultiply(_q);
+    }
+    t.spin.multiplyScalar(Math.exp(-dt * (t.ground ? 6 : 0.6)));
+    if (!airborne) t.mesh.quaternion.slerp(t.rest, Math.min(1, dt * 4));
+  }
+  if (thud > 0) sfx.pomf(clamp(thud / 6, 0.3, 1));
+  // the prize door flap swings open as a prize drops through
+  game.flapOpen = Math.max(0, game.flapOpen - dt);
+  flap.rotation.x = lerp(flap.rotation.x, game.flapOpen > 0 ? -1.0 : 0, Math.min(1, dt * 8));
+  // marquee lights: a chase, a quick flash after a coin, a party while a prize shows
+  game.flash = Math.max(0, game.flash - dt);
+  const party = game.mode === 'prize', step = Math.floor(time * (party ? 14 : 5));
+  for (let i = 0; i < bulbSpots.length; i++) {
+    const on = party || game.flash > 0 ? (step + (i % 2)) % 2 === 0 : (i + step) % 3 !== 0;
+    bulbs.setColorAt(i, on ? BULB_COLOURS[(i + (party ? step : 0)) % 3] : BULB_OFF);
+  }
+  bulbs.instanceColor.needsUpdate = true;
+  slotGlow.material.color.set(claw.state === 'coin' && Math.sin(time * 6) > 0 ? '#fff6a8' : '#ffc400');
+}
+function updateRefill(dt) {
+  if (!refill.queue) return;
+  refill.t -= dt;
+  if (refill.t > 0) return;
+  const [x, z] = freeSpot(); addToy(chooseKind(), x, 4.1, z); refill.queue--; refill.t = 0.22; sfx.plop();
+}
+function updateHints(dt) {
+  if (game.mode !== 'play' || !shelfEl.hidden) return;
+  game.idle += dt;
+  if (claw.state === 'coin' && game.idle > IDLE_HINT && !coinBtn.classList.contains('call')) { coinBtn.classList.add('call'); help('coin', 'Tap the coin!'); }
+  if (claw.state === 'aim' && game.idle > IDLE_HINT) {
+    if (!game.moved) stick.classList.add('nudge');
+    else if (!grabBtn.classList.contains('call')) { grabBtn.classList.add('call'); help('press', 'Press the red button!'); }
+  }
+}
+let last = performance.now(), clock = 0;
+function step(dt) {
+  clock += dt;
+  updateClaw(dt); physics(dt); updateRefill(dt); updateShow(dt); updateHints(dt); updateVisuals(dt, clock);
+}
+function render() {
+  renderer.render(scene, camera);
+  if (ov.phase) { renderer.autoClear = false; renderer.clearDepth(); renderer.render(ov.scene, ov.cam); renderer.autoClear = true; }
+}
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  step(dt); render();
+}
+
+/* ======== start ======== */
+layout();
+fillMachine();
+renderThumbs();
+drawShelfBtn(false);
+showButtons();
+requestAnimationFrame(frame);
+
+// test hooks (the Browser pane barely draws frames in a hidden tab, so tick() runs the game by hand)
+window.__claw = {
+  get claw() { return claw; }, get toys() { return toys; }, get game() { return game; }, get got() { return got; },
+  get audio() { return { running: sfx.running, muted: sfx.muted, music: sfx.playing }; },
+  get draws() { return renderer.info.render; },
+  coin() { coinTap(); }, grab() { pressGrab(); }, done() { showDone(); },
+  moveTo(x, z) { claw.target = { x, z }; },
+  over(i = 0) { const t = toys[i]; claw.x = t.p.x; claw.z = t.p.z; claw.target = null; return t.kind; },
+  screenOf(i) { return toScreen(toys[i].p); },
+  tick(seconds, draw = true) { for (let i = 0; i < seconds * 60; i++) step(1 / 60); if (draw) render(); },
+  reset() { got = {}; store.set('got', got); store.set('heard', {}); drawShelfBtn(false); },
+};
+</script>
+<script>
+// Offline support: sw.js caches this page. Once the page has loaded, send it every file the page used (fonts,
+// three.js) so those work offline too. Fails quietly where unsupported, e.g. on file://.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then((reg) => {
+    const send = () => reg.active && reg.active.postMessage({ cache: [location.href, ...performance.getEntriesByType('resource').map((r) => r.name)] });
+    send(); setTimeout(send, 5000); setTimeout(send, 20000);
+  }).catch(() => {});
+  // When sw.js says a newer version of this page has just been downloaded, reload once to show it: straight away if
+  // nobody has tapped or pressed a key yet, otherwise when the page comes back after 5+ minutes away, so a game in
+  // progress is never lost. A timestamp in sessionStorage stops a second reload within 30 s.
+  let started = false, newer = false, hiddenAt = 0;
+  addEventListener('pointerdown', () => { started = true; }, true);
+  addEventListener('keydown', () => { started = true; }, true);
+  const reload = () => {
+    const key = 'tbx-sw-reload:' + location.pathname;
+    try { if (Date.now() - (+sessionStorage.getItem(key) || 0) < 30000) return; sessionStorage.setItem(key, Date.now()); } catch { return; }
+    location.reload();
+  };
+  navigator.serviceWorker.addEventListener('message', (e) => { if (e.data && e.data.updated) { newer = true; if (!started) reload(); } });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) hiddenAt = Date.now();
+    else if (newer && hiddenAt && Date.now() - hiddenAt >= 5 * 60 * 1000) reload();
+  });
+}
+</script>
+</body>
+</html>
